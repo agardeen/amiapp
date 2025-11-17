@@ -11,9 +11,9 @@ Z29,Base,DDR,Zprone2,PB5606,Zing Prone Gas Spring Lift,1802,,,
 Z30,Base,DDR,Zprone2,PB5608,Zing Prone Pow’r Up Lift,3330,,,
 Z31,,Lable,"Zmps1, Zmpstt1, Zprone1",Frame Color - must select one,,,,,
 Z32,Frame Color,DDR,"Zmps2, Zmpstt2, Zprone2",Green,Green,0,Default,,https://zingstanders.com/wp-content/uploads/2019/03/green-color-swatch-300x300.png
-Z33,Frame Color,DDR,"Zmps2, Zmpstt2, Zprone2",Purple,Purple,0,,,https://zingstanders.com/wp-content/uploads/2019/03/purple-color-swatch-300x300.png
-Z34,Frame Color,DDR,"Zmps2, Zmpstt2, Zprone2",White,White,0,,,https://zingstanders.com/wp-content/uploads/2019/03/white-color-swatch-1-300x300.png
-Z35,Frame Color,DDR,"Zmps2, Zmpstt2, Zprone2",Orange,Orange,0,,,https://zingstanders.com/wp-content/uploads/2019/03orange-color-swatch-1-300x300.png
+Z33,Frame Color,DDR,"Zmps1, Zmpstt1, Zprone1",Purple,Purple,0,,,https://zingstanders.com/wp-content/uploads/2019/03/purple-color-swatch-300x300.png
+Z34,Frame Color,DDR,"Zmps1, Zmpstt1, Zprone1",White,White,0,,,https://zingstanders.com/wp-content/uploads/2019/03/white-color-swatch-1-300x300.png
+Z35,Frame Color,DDR,"Zmps1, Zmpstt1, Zprone1",Orange,Orange,0,,,https://zingstanders.com/wp-content/uploads/2019/03orange-color-swatch-1-300x300.png
 Z36,,Lable,"Zmps1, Zmpstt1, Zprone1",Mast-must select one,,,,,
 Z37,Mast,DDR,"Zmps2, Zmpstt2, Zprone2",PB5512,Mast,790,,,
 Z38,Mast,DDR,"Zmps2, Zmpstt2, Zprone2",PB5514,Mast with Leg Abduction,1107,Default,,
