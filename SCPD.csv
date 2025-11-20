@@ -1,5 +1,5 @@
 ID,Section,Control,Base,ITEM,DESCRIPTION,MSRP 25,Off Unit,MSRP 26,Notes,Requires,Link
-SC1,Frame Color,DDR,,,Black (standard),,,,,,https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Black-Standard-SC-1-scaled.jpg?resize=600%2C600&ssl=1
+SC1,Frame Color,DDR,,,Black (standard),,,,Default,,https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Black-Standard-SC-1-scaled.jpg?resize=600%2C600&ssl=1
 SC2,Frame Color,DDR,,,Red,,,,,,https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/RED-SC-1-scaled.jpg?resize=600%2C600&ssl=1
 SC3,Frame Color,DDR,,,Blue,,,,,,https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Blue-SC-1-scaled.jpg?resize=600%2C600&ssl=1
 SC4,Frame Color,DDR,,,Silver,,,,,,https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Silver-SC-scaled.jpg?resize=600%2C600&ssl=1
@@ -13,7 +13,7 @@ SC11,Frame,DDR,,PC5007,"Frame - 16""W x 20""D - Standard",3240,3240,1895, (may l
 SC12,Frame,DDR,,PC5000,"Frame - 18""W x 16""D - Short",2745,2745,1895,,,
 SC13,Frame,DDR,,PC5008,"Frame - 18""W x 18""D - Short",3140,3140,1895,,,
 SC14,Frame,DDR,,PC5009,"Frame - 18""W x 20""D - Short",3140,3140,1895,,,
-SC15,Frame,DDR,,PC5001,"Frame - 18""W x 16""D - Standard (Default)",2350,2350,1895,,,
+SC15,Frame,DDR,,PC5001,"Frame - 18""W x 16""D - Standard (Default)",2350,2350,1895,Default,,
 SC16,Frame,DDR,,PC5010,"Frame - 18""W x 18""D - Standard",2745,2745,1895,,,
 SC17,Frame,DDR,,PC5011,"Frame - 18""W x 20""D - Standard",2745,2745,1895,,,
 SC18,Frame,DDR,,PC5012,"Frame - 20""W x 16""D - Short",3240,3240,1895,,,
@@ -40,7 +40,7 @@ SC38,Seats,DDR,,PC5914,"16""Wx20""D Left Side Opening",660,660,660,,"PC5004, PC5
 SC39,Seats,DDR,,PC5915,"16""Wx20""D Right Side Opening",660,660,660,,"PC5004, PC5007,",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Untitled-6.jpeg?resize=600%2C600&ssl=1
 SC40,Seats,DDR,,PC5916,"16""Wx20""D Rear Opening",660,660,660,,"PC5004, PC5007,",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Untitled-3.jpeg?resize=600%2C600&ssl=1
 SC41,Seats,DDR,,PC5917,"16""Wx20""D Solid",660,660,660,,"PC5004, PC5007,",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/10/SolidSeat-scaled.jpg?resize=768%2C765&ssl=1
-SC42,Seats,DDR,,PC5918,"18""Wx16""D Front Opening - Standard",0,460,460,,"PC5000, PC5001",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Untitled-4.jpeg?resize=600%2C600&ssl=1
+SC42,Seats,DDR,,PC5918,"18""Wx16""D Front Opening - Standard",0,460,460,Default,"PC5000, PC5001",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Untitled-4.jpeg?resize=600%2C600&ssl=1
 SC43,Seats,DDR,,PC5954,"18""Wx16""D Front Opening - Gel",560,560,560,,"PC5000, PC5001",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/IMG_3439-scaled-e1737663670187.jpg?resize=600%2C600&ssl=1
 SC44,Seats,DDR,,PC5919,"18""Wx16""D Closed",460,460,460,,"PC5000, PC5001",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Untitled-6.jpeg?resize=600%2C600&ssl=1
 SC45,Seats,DDR,,PC5920,"18""Wx16""D Left Side Opening",460,460,460,,"PC5000, PC5001",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Untitled-5.jpeg?resize=600%2C600&ssl=1
@@ -79,14 +79,14 @@ SC77,Seats,DDR,,PC5950,"20""Wx20""D Left Side Opening",660,660,660,,"PC5014, PC5
 SC78,Seats,DDR,,PC5951,"20""Wx20""D Right Side Opening",660,660,660,,"PC5014, PC5017",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Untitled-6.jpeg?resize=600%2C600&ssl=1
 SC79,Seats,DDR,,PC5952,"20""Wx20""D Rear Opening",660,660,660,,"PC5014, PC5017",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/01/Untitled-3.jpeg?resize=600%2C600&ssl=1
 SC80,Seats,DDR,,PC5953,"20""Wx20""D Solid",660,660,660,,"PC5014, PC5017",https://i0.wp.com/activeaid.com/wp-content/uploads/2025/10/SolidSeat-scaled.jpg?resize=768%2C765&ssl=1
-SC81,Seat Slope,DDR,,PC5020,"Fixed Seat Slope - 16""",0,105,0,,"PC5014, PC5017",
+SC81,Seat Slope,DDR,,PC5020,"Fixed Seat Slope - 16""",0,105,0,Default,"PC5014, PC5017",
 SC82,Seat Slope,DDR,,PC5021,"Adjustable Seat Slope - 16""",105,105,105,,"PC5002, PC5003, PC5004, PC5005, PC5006, PC5007,",
-SC83,Seat Slope,DDR,,PC5022,"Fixed Seat Slope - 18""",0,105,0,,"PC5000, PC5008, PC5009, PC5001 PC5010, PC5011",
+SC83,Seat Slope,DDR,,PC5022,"Fixed Seat Slope - 18""",0,105,0,Default,"PC5000, PC5008, PC5009, PC5001 PC5010, PC5011",
 SC84,Seat Slope,DDR,,PC5023,"Adjustable Seat Slope - 18""",105,105,105,,"PC5000, PC5008, PC5009, PC5001 PC5010, PC5011",
-SC85,Seat Slope,DDR,,PC5024,"Fixed Seat Slope - 20""",0,105,0,,"PC5013, PC5014, PC5015, PC5016, PC5017",
+SC85,Seat Slope,DDR,,PC5024,"Fixed Seat Slope - 20""",0,105,0,Default,"PC5013, PC5014, PC5015, PC5016, PC5017",
 SC86,Seat Slope,DDR,,PC5025,"Adjustable Seat Slope - 20""",105,105,105,,"PC5013, PC5014, PC5015, PC5016, PC5017",
 SC87,Caster,DDR,,PC5641,"Front Casters - Deluxe Aluminum 5""",120,120,120,,,
-SC88,Caster,DDR,,PC5642,"Front Casters 5"" - Standard",0,85,0,,,
+SC88,Caster,DDR,,PC5642,"Front Casters 5"" - Standard",0,85,0,Default,,
 SC89,Wheels,DDR,,PC5600,"20"" Nylon Wheels (pair)",0,300,0,,,
 SC90,Wheels,DDR,,PC5601,"22"" Nylon Wheels (pair)",0,300,0,,,
 SC91,Wheels,DDR,,PC5602,"24"" Nylon Wheels (pair)",0,300,0,,,
@@ -100,16 +100,16 @@ SC98,Wheels,DDR,,PC5616,"24"" Magnesium Deep Tread Wheels (pair)",495,495,495,,,
 SC99,Wheels,DDR,,PC5617,"24"" Magnesium Deep Tread Wheels (pair) W/Std. Handrims",495,495,495,,,
 SC100,Hand Rims,CB,,PC5622,"22"" Slim Handrims (pair)",140,140,140,,"PC5610, PC5612",
 SC101,Hand Rims,CB,,PC5623,"24"" Slim Handrims (pair)",140,140,140,,"PC5614, PC5616",
-SC102,Axles,DDR,,PC5630,"Bolted Axles - 1/2"" - Mag",0,80,0,"for magnesium wheels, 1/2 diameter.","PC5610, PC5611, PC5612, PC5613, PC5614, PC5615, PC5616, PC5617",
+SC102,Axles,DDR,,PC5630,"Bolted Axles - 1/2"" - Mag",0,80,0,"for magnesium wheels, 1/2 diameter; Default","PC5610, PC5611, PC5612, PC5613, PC5614, PC5615, PC5616, PC5617",
 SC103,Axles,DDR,,PC5631,"Quick Release Axles - 1/2""",95,95,95,"for magnesium wheels, 1/2 diameter.","PC5610, PC5611, PC5612, PC5613, PC5614, PC5615, PC5616, PC5617",
-SC104,Axles,DDR,,PC5632,Bolted Axles - 12MM - Nylon,0,80,0,"for nylon wheels, 12MM diameter.","PC5600, PC5601, PC5602",
+SC104,Axles,DDR,,PC5632,Bolted Axles - 12MM - Nylon,0,80,0,"for nylon wheels, 12MM diameter; Default","PC5600, PC5601, PC5602",
 SC105,Axles,DDR,,PC5633,Quick Release Axles 12MM,95,95,95,"for nylon wheels, 12MM diameter.","PC5600, PC5601, PC5602",
-SC106,Wheel Locks,DDR,,PC5502,Scissors Wheel Locks,0,125,125,,,
+SC106,Wheel Locks,DDR,,PC5502,Scissors Wheel Locks,0,125,125,Default,,
 SC107,Wheel Locks,DDR,,PC5501,Toggle Wheel Locks - Long Handle - Pair,200,200,200,,,
 SC108,Wheel Locks,DDR,,PC5500,Toggle Wheel Locks - Short Handle,140,140,140,,,
-SC109,Foot Plates,DDR,,PC5460,"Footplate - 1 PC. - Flat - 16""",0,200,200,,"PC5002, PC5003, PC5004, PC5005, PC5006, PC5007,",
-SC110,Foot Plates,DDR,,PC5461,"Footplate - 1 PC. - Flat - 18""",0,200,200,,"PC5000, PC5008, PC5009, PC5001 PC5010, PC5011",
-SC111,Foot Plates,DDR,,PC5462,"Footplate - 1 PC. - Flat - 20""",0,200,200,,"PC5013, PC5014, PC5015, PC5016, PC5017",
+SC109,Foot Plates,DDR,,PC5460,"Footplate - 1 PC. - Flat - 16""",0,200,200,Default,"PC5002, PC5003, PC5004, PC5005, PC5006, PC5007,",
+SC110,Foot Plates,DDR,,PC5461,"Footplate - 1 PC. - Flat - 18""",0,200,200,Default,"PC5000, PC5008, PC5009, PC5001 PC5010, PC5011",
+SC111,Foot Plates,DDR,,PC5462,"Footplate - 1 PC. - Flat - 20""",0,200,200,Default,"PC5013, PC5014, PC5015, PC5016, PC5017",
 SC112,Foot Plates,DDR,,PC5463,"Footplate - 1 PC. - Adjustable - 16""",295,295,295,,"PC5002, PC5003, PC5004, PC5005, PC5006, PC5007,",
 SC113,Foot Plates,DDR,,PC5464,"Footplate - 1 PC. - Adjustable - 18""",295,295,295,,"PC5000, PC5008, PC5009, PC5001 PC5010, PC5011",
 SC114,Foot Plates,DDR,,PC5465,"Footplate - 1 PC. - Adjustable - 20""",295,295,295,,"PC5013, PC5014, PC5015, PC5016, PC5017",
@@ -134,13 +134,13 @@ SC132,Foot Plate Accessories,CB,,PC5474,"Neoprene Gooseneck, Pair, 20""",90,90,9
 SC133,Foot Plate Accessories,CB,,PC5478,Foot Straps - Pair,15,15,15,,,
 SC134,Foot Plate Accessories,CB,,PC5470,Heel Stop (Pair),30,30,30,,,
 SC135,Foot Plate Accessories,CB,,PC5471,Heel Stop/Foot pad (Pair),60,60,60,,,
-SC136,Backs,DDR,,PC5145,Back - Solid - 16,0,205,0,,"PC5002, PC5003, PC5004, PC5005, PC5006, PC5007,",
-SC137,Backs,DDR,,PC5146,Back - Solid - 18,0,205,0,,"PC5000, PC5009, PC5009, PC5010, PC5011",
-SC138,Backs,DDR,,PC5147,Back - Solid - 20,0,205,0,,"PC5013, PC5014, PC5015, PC5016, PC5017",
+SC136,Backs,DDR,,PC5145,Back - Solid - 16,0,205,0,Default,"PC5002, PC5003, PC5004, PC5005, PC5006, PC5007,",
+SC137,Backs,DDR,,PC5146,Back - Solid - 18,0,205,0,Default,"PC5000, PC5009, PC5009, PC5010, PC5011",
+SC138,Backs,DDR,,PC5147,Back - Solid - 20,0,205,0,Default,"PC5013, PC5014, PC5015, PC5016, PC5017",
 SC139,Backs,DDR,,PC5125,STROLLER HANDLE - SLING BACK - 16,245,245,245,,"PC5002, PC5003, PC5004, PC5005, PC5006, PC5007,",
 SC140,Backs,DDR,,PC5126,STROLLER HANDLE - SLING BACK - 18,245,245,245,,"PC5000, PC5009, PC5009, PC5010, PC5011",
 SC141,Backs,DDR,,PC5127,STROLLER HANDLE - SLING BACK - 20,245,245,245,,"PC5013, PC5014, PC5015, PC5016, PC5017",
-SC142,Back Rest Adjustment,DDR,,PC5100,Fixed Back Angle 7°,0,200,0,,,
+SC142,Back Rest Adjustment,DDR,,PC5100,Fixed Back Angle 7°,0,200,0,Default,,
 SC143,Back Rest Adjustment,DDR,,PC5101,Adjustable Angle Back,225,225,225,,,
 SC144,Push Handles,DDR,,PC5122,"Stroller Handle for Solid Back - 16""",125,125,125,,"PC5002, PC5003, PC5004, PC5005, PC5006, PC5007,",
 SC145,Push Handles,DDR,,PC5150,Fixed Handles - Sling Back,0,95,0,,"PC5125, PC5126, PC5127",

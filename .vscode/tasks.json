@@ -1,0 +1,19 @@
+
+
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Git Init and Commit",
+      "type": "shell",
+      "command": "git init && git add . && git commit -m \"Initial commit\"",
+      "options": {
+        "shell": {
+          "executable": "cmd.exe"
+        }
+      },
+      "problemMatcher": []
+    }
+  ]
+}
+
