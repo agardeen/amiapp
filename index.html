@@ -33,11 +33,32 @@
     <div class="container">
         <h2>Product Configurators</h2>
         <p>Please select a product to begin configuration.</p>
-        <ul>
-            <li><a href="z1of.html">Zing Size 1</a></li>
-            <li><a href="z2of.html">Zing Size 2</a></li>
-            <li><a href="SCof.html">Shower Commode</a></li>
+        <ul id="product-links">
+            <!-- Links will be dynamically inserted here by JavaScript -->
         </ul>
     </div>
+
+    <script>
+        // To add a new page link, add a new entry to this 'pages' array.
+        const pages = [
+            { href: 'z1of.html', text: 'Zing Size 1' },
+            { href: 'z2of.html', text: 'Zing Size 2' },
+            { href: 'SC.html', text: 'Shower Commode (Multi-Price)' },
+            { href: 'SCof.html', text: 'Shower Commode (MSRP 25)' },
+            { href: 'SCof26.html', text: 'Shower Commode (MSRP 26)' }
+        ];
+
+        const productLinksList = document.getElementById('product-links');
+
+        pages.forEach(page => {
+            const listItem = document.createElement('li');
+            const link = document.createElement('a');
+            link.href = page.href;
+            link.textContent = page.text;
+            listItem.appendChild(link);
+            productLinksList.appendChild(listItem);
+        });
+    </script>
+    <!-- Test comment for VS Code task -->
 </body>
 </html>
