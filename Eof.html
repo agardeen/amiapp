@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Order Form</title>
+    <!-- A simple, clean CSS framework for styling -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        #order-form-container { max-width: 900px; margin: 2rem auto; padding: 5px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9; }
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 2px;
+        }
+        .tab-nav button {
+            padding: 3px 10px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            background-color: #eee;
+            margin-right: 5px;
+        }
+        .tab-nav button.active {
+            background-color: #f9f9f9;
+            border-color: #ccc;
+            border-bottom: 1px solid #f9f9f9;
+            margin-bottom: -1px;
+        }
+        .settings-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px 8px; /* Adjust padding for icon */
+        }
+        .table-container {
+            overflow: auto; /* Enable both horizontal and vertical scrolling */
+            max-height: 60vh; /* Set a maximum height before scrolling starts */
+        }
+        table { border-collapse: collapse; table-layout: auto; } /* Removed width: 100% and added table-layout: auto */
+        th, td { padding: 4px 6px; border: 1px solid #ddd; text-align: left; font-size: 0.64rem; white-space: nowrap; overflow: hidden; }
+        thead { background-color: #f2f2f2; }
+        .loading, .error { text-align: center; padding: 2rem; }
+        .col-wide {
+            min-width: 250px; /* Make the description column wider */
+            white-space: normal; /* Allow text wrapping only for this column */
+        }
+        .col-narrow {
+            max-width: 80px; /* Encourage narrow columns to be smaller */
+        }
+        th {
+            position: sticky;
+            top: 0;
+        }
+        .tab-content-config {
+            background-color: #fff5e6; /* A very light orange */
+            padding: 1rem 1px 1px 1rem; /* top, right, bottom, left */
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            height: 500px; /* Example height, adjust as needed */
+        }
+        .tab-content-config select {
+            max-width: 75%;
+        }
+        .tab-content-config select, .tab-content-config label {
+            font-size: 0.85rem; /* Reduce form control text size by 15% */
+        }
+        /* Override for the Frame Color dropdown to allow it to be full width */
+        .tab-content-config select[id="Frame Color"] {
+            max-width: none;
+        }
+        .form-group {
+            margin-bottom: 0.6rem; /* Reduced vertical spacing by 60% */
+        }
+        .bottom-section {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .price-column {
+            display: flex; flex-direction: column; align-items: flex-end; gap: 0;
+        }
+        .top-section .form-group {
+            /* Add padding to the right to account for the scrollbar in the bottom section */
+            padding-right: 17px; 
+        }
+        .clear-button {
+            padding: 2px 3px;
+        }
+        .submit-button {
+            background-color: green;
+            color: white;
+            border-color: darkgreen;
+        }
+        .invalid-submit {
+            background-color: #ffcccc; /* Pale red */
+            color: #333;
+        }
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: left;
+            gap: 1rem;
+        }
+        .price-display {
+            text-align: right;
+            padding-top: 5px; /* Reduced height by ~20% */
+            padding-bottom: 5px; /* Reduced height by ~20% */
+            width: 9ch; /* Set width to roughly 9 characters */
+            font-size: 0.8rem; /* Reduce text size by 20% */
+        }
+        .notes-display {
+            background-color: #e6f2ff; /* Light Blue */
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-size: 1rem;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+        .notes-text {
+            width: 200px;
+            height: 150px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+        }
+        .notes-image {
+            max-width: 100%;
+            height: auto;
+            max-height: 150px;
+        }
+        select:required:invalid {
+            color: #666; /* Make placeholder text visible */
+            border: 1px solid red; /* Add red border to unselected required fields */
+        }
+        .total-price-display {
+            color: blue;
+        }
+        .compact-price-box {
+            padding-top: 1px !important; /* Use !important to override .price-display */
+            padding-bottom: 1px !important;
+        }
+        .custom-multiselect {
+            position: relative;
+            width: 200px;
+        }
+        .multiselect-display {
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            cursor: pointer;
+            background-color: white;
+            border-radius: 4px;
+            font-size: 0.7rem; /* Reduced font size by 30% */
+        }
+        .multiselect-options {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            border: 1px solid #ccc;
+            border-top: none;
+            background-color: white;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .selected-items-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            padding: 5px;
+        }
+        .selected-item-tag {
+            background-color: #e0e0e0;
+            padding: 3px 8px;
+            border-radius: 4px;
+            cursor: move;
+            font-size: 0.8rem;
+            border: 1px solid #ccc;
+        }
+        .drag-over {
+            background-color: #3498db;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="order-form-container">
+        <!-- The Vue.js application will be mounted here -->
+        <!-- The template for our app is now defined below, outside the main script block -->
+    </div>
+
+    <!-- 1. Include Vue.js library -->
+    <script src="https://unpkg.com/vue@3"></script>
+    <!-- 2. Include PapaParse library to easily parse CSV data -->
+    <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+    
+    <!-- 
+      TEMPLATE DEFINITION 
+      This script block defines the HTML structure of our component.
+      By separating it, we make both the template and the logic easier to read.
+    -->
+    <script type="text/x-template" id="order-form-template">
+        <h2 style="text-align: center; margin-top: 4px; margin-bottom: 4px;">Evolv</h2>
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button @click="activeTab = 'configuration'" :class="{ active: activeTab === 'configuration' }">Build</button>
+            <button @click="activeTab = 'person'" :class="{ active: activeTab === 'person' }">Order Details</button>
+            <button @click="activeTab = 'table'" :class="{ active: activeTab === 'table' }">Item List</button>
+            <button @click="activeTab = 'summary'" :class="{ active: activeTab === 'summary' }">Summary</button>
+            <button @click="activeTab = 'settings'" :class="['settings-button', { active: activeTab === 'settings' }]" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311a1.464 1.464 0 0 1-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c-1.4-.413-1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z"/></svg></button>
+        </div>
+
+        <!-- Tab Content -->
+        <div v-show="activeTab === 'configuration'" class="tab-content-config">
+            <div v-if="isLoading" class="loading">Loading Build...</div>
+            <form v-else-if="!error" style="display: flex; flex-direction: column; height: 100%;">
+                <!-- TOP (FIXED) SECTION -->
+                <div class="top-section">
+                    <div class="form-group">
+                        <div class="form-row" @mouseenter="hoveredControlId = 'base-product'" @mouseleave="hoveredControlId = null">
+                            <select id="base-product" v-model="selectedBaseId" required >
+                                <option disabled value="">Base</option>
+                                <option v-for="product in baseProducts" :key="product.ID" :value="product.ID">
+                                {{ product.ITEM === product.DESCRIPTION ? product.ITEM : product.ITEM + ' ' + product.DESCRIPTION }} <span v-if="parseFloat(product['MSRP 25']) > 0">${{ product['MSRP 25'] }}</span>
+                                </option>
+                            </select>
+                            <div class="price-column">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="font-size: 0.85rem;">Total:</label>
+                                    <input type="text" readonly class="price-display total-price-display compact-price-box" :value="'$' + totalPrice">
+                                </div>
+                                <div v-if="selectedBase" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="font-size: 0.85rem; color: #888;">Base:</label>
+                                    <input type="text" readonly class="price-display compact-price-box" :value="'$' + selectedBase['MSRP 25']">
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="hoveredControlId === 'base-product' && getHoveredItem({ id: 'base-product' }) && (getHoveredItem({ id: 'base-product' }).Notes || getHoveredItem({ id: 'base-product' }).Link)" class="notes-display">
+                            <div v-if="getHoveredItem({ id: 'base-product' }).Notes" class="notes-text">
+                                {{ getHoveredItem({ id: 'base-product' }).Notes }}
+                            </div>
+                            <img v-if="getHoveredItem({ id: 'base-product' }).Link" :src="getHoveredItem({ id: 'base-product' }).Link" class="notes-image" alt="Note Image">
+                        </div>
+                    </div>
+                    <!-- Explicitly render Frame Color control if it exists -->
+                    <div v-if="frameColorControl" class="form-group">
+                        <div class="form-row">
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <!-- Required Dropdown (DDR) -->
+                                <select :id="frameColorControl.id" v-model="formSelections[frameColorControl.id]" required @mouseenter="hoveredControlId = frameColorControl.id" @mouseleave="hoveredControlId = null">
+                                    <option disabled value="">{{ frameColorControl.label }}</option>
+                                    <option v-for="option in frameColorControl.options" :key="option.ID" :value="option.ID">
+                                        {{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option['MSRP 25']) > 0">${{ option['MSRP 25'] }}</span>
+                                    </option>
+                                </select>
+                                <label>
+                                    <input type="checkbox" v-model="selectFrameColorDefaults"> Select Defaults
+                                </label>
+                                <button @click.prevent="clearConfiguration" type="button" class="clear-button">
+                                    Clear
+                                </button>
+                                <button @click.prevent="saveConfiguration" type="button" class="clear-button">
+                                    Save
+                                </button>
+                                <button @click.prevent="triggerFileLoad" type="button" class="clear-button">
+                                    Load
+                                </button>
+                                <button @click.prevent="submitConfiguration" type="button" class="clear-button submit-button" :class="{ 'invalid-submit': isFormInvalid }">
+                                    Submit
+                                </button>
+                            </div>
+                            <!-- Price display for all dynamic controls -->
+                            <input v-if="selectedOptions[frameColorControl.id] && parseFloat(selectedOptions[frameColorControl.id]['MSRP 25']) > 0" type="text" readonly class="price-display" :value="'$' + selectedOptions[frameColorControl.id]['MSRP 25']">
+                        </div>
+                        <div v-if="hoveredControlId === frameColorControl.id && getHoveredItem(frameColorControl) && (getHoveredItem(frameColorControl).Notes || getHoveredItem(frameColorControl).Link)" class="notes-display">
+                            <div v-if="getHoveredItem(frameColorControl).Notes" class="notes-text">
+                                {{ getHoveredItem(frameColorControl).Notes }}
+                            </div>
+                            <img v-if="getHoveredItem(frameColorControl).Link" :src="getHoveredItem(frameColorControl).Link" class="notes-image" alt="Note Image">
+                        </div>
+                    </div>
+                </div>
+                <input type="file" ref="fileLoader" @change="handleFileLoad" style="display: none" accept=".json">
+
+                <!-- BOTTOM (SCROLLABLE) SECTION -->
+                <div class="bottom-section">
+                    <!-- Dynamically Rendered Conditional Controls -->
+                    <div v-if="selectedBase">
+                        <div v-for="control in otherConditionalControls" :key="control.id" class="form-group">
+                            <div class="form-row">
+                                <!-- Required Dropdown (DDR) -->
+                                <select v-if="control.controlType === 'DDR'" :id="control.id" v-model="formSelections[control.id]" required @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
+                                    <option disabled value="">{{ control.label }}</option>
+                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">
+                                        {{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option['MSRP 25']) > 0">${{ option['MSRP 25'] }}</span>
+                                    </option>
+                                </select>
+                                
+                                <!-- Non-Required Dropdown (DD) -->
+                                <select v-if="control.controlType === 'DD'" :id="control.id" v-model="formSelections[control.id]" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" :required="control.section === 'Pattern' && isPatternRequired">
+                                    <option value="">No {{ control.section }}</option>
+                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">
+                                        {{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option['MSRP 25']) > 0">${{ option['MSRP 25'] }}</span>
+                                    </option>
+                                </select>
+
+                                <!-- Checkbox (CB) -->
+                                <label v-if="control.controlType === 'CB'" :for="control.id" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
+                                    <input type="checkbox" :id="control.id" v-model="formSelections[control.id]" :disabled="isCheckboxDisabled(control.id)">
+                                    {{ control.label }} <span v-if="parseFloat(control.price) > 0">- ${{ control.price }}</span>
+                                </label>
+
+                                <!-- Price display for all dynamic controls -->
+                                <input v-if="(control.controlType === 'DDR' || control.controlType === 'DD') && selectedOptions[control.id] && parseFloat(selectedOptions[control.id]['MSRP 25']) > 0" type="text" readonly class="price-display" :value="'$' + selectedOptions[control.id]['MSRP 25']">
+                                <input v-if="control.controlType === 'CB' && formSelections[control.id] && parseFloat(control.price) > 0" type="text" readonly class="price-display" :value="'$' + control.price">
+
+                            </div>
+                            <div v-if="hoveredControlId === control.id && getHoveredItem(control) && (getHoveredItem(control).Notes || getHoveredItem(control).Link)" class="notes-display">
+                                <div v-if="getHoveredItem(control).Notes" class="notes-text">
+                                    {{ getHoveredItem(control).Notes }}
+                                </div>
+                                <img v-if="getHoveredItem(control).Link" :src="getHoveredItem(control).Link" class="notes-image" alt="Note Image">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+            <div v-else class="error">{{ error }}</div>
+        </div>
+
+        <div v-show="activeTab === 'person'">
+            <h2>Order Details</h2>
+            <div style="display: flex; gap: 2rem;">
+                <div style="flex: 1;">
+                    <div class="form-group">
+                        <label for="po-number">Purchase Order #</label>
+                        <input type="text" id="po-number">
+                    </div>
+                    <div class="form-group">
+                        <label for="quote-number">Quote #</label>
+                        <input type="text" id="quote-number">
+                    </div>
+                    <div class="form-group">
+                        <label for="account-number">Account #</label>
+                        <input type="text" id="account-number">
+                    </div>
+                    <div class="form-group">
+                        <label for="ordered-by">Ordered By:</label>
+                        <input type="text" id="ordered-by">
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-company">Supplier Company:</label>
+                        <input type="text" id="supplier-company">
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-address">Address:</label>
+                        <textarea id="supplier-address" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-phone">Phone:</label>
+                        <input type="tel" id="supplier-phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-email">Email:</label>
+                        <input type="email" id="supplier-email">
+                    </div>
+                    <div class="form-group">
+                        <label for="payer-source">Payer Source:</label>
+                        <input type="text" id="payer-source">
+                    </div>
+                    <div class="form-group">
+                        <label for="atp-name">Name of ATP (Required):</label>
+                        <input type="text" id="atp-name" required>
+                    </div>
+                </div>
+                <div style="flex: 1;">
+                    <h4>Ship To:</h4>
+                    <div class="form-group">
+                        <label for="ship-to-name">Name:</label>
+                        <input type="text" id="ship-to-name">
+                    </div>
+                    <div class="form-group">
+                        <label for="ship-to-address">Address:</label>
+                        <textarea id="ship-to-address" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="ship-to-phone">Phone:</label>
+                        <input type="tel" id="ship-to-phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="tag-for">Tag For:</label>
+                        <input type="text" id="tag-for">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-show="activeTab === 'table'">
+            <div v-if="isLoading" class="loading">Loading Table Data...</div>
+            <div v-if="error" class="error">{{ error }}</div>
+            <div v-if="!isLoading && !error" style="padding-top: 1rem;">
+                <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th v-for="header in selectedTableHeaders" :key="header" :class="getColumnClass(header)">{{ header }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(row, index) in tableData" :key="row.ID || index">
+                            <td v-for="header in selectedTableHeaders" :key="header" :class="getColumnClass(header)">
+                                {{ row[header] }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            </div>
+        </div>
+
+        <div v-show="activeTab === 'summary'">
+            <h2>Summary</h2>
+            <div v-if="finalConfigurationItems.length > 0" class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Section</th>
+                            <th>Item</th>
+                            <th>Description</th>
+                            <th style="text-align: right;">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="item in finalConfigurationItems" :key="item.ID">
+                            <td>{{ item.Section }}</td>
+                            <td>{{ item.ITEM && item.ITEM.endsWith('u') ? item.ITEM.slice(0, -1) : item.ITEM }}</td>
+                            <td>{{ item.DESCRIPTION }}</td>
+                            <td style="text-align: right;">${{ parseFloat(item['MSRP 25']) || 0 }}</td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" style="text-align: right; font-weight: bold;">Total Price:</td>
+                            <td style="text-align: right; font-weight: bold;">${{ totalPrice }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <p v-else>No items have been configured yet.</p>
+        </div>
+
+        <div v-show="activeTab === 'settings'">
+            <h2>Settings</h2>
+            
+            <div>
+                <h4>General</h4>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" v-model="isSpecialOrder"> Mark as Special Order
+                    </label>
+                </div>
+            </div>
+            <hr>
+            <div>
+                <h4>Build</h4>
+                <!-- Settings for the Build tab will go here -->
+                <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
+                    <label>Select Price Columns to Display:</label>
+                    <div class="custom-multiselect" ref="priceColumnSelector">
+                        <div class="multiselect-display" @click="togglePriceColumnDropdown">
+                            <div v-if="selectedPriceHeaders.length === 0" style="padding: 5px 0;">Select Price Columns</div>
+                            <div v-else class="selected-items-container">
+                                <span v-for="(header, index) in selectedPriceHeaders"
+                                      :key="header"
+                                      class="selected-item-tag"
+                                      draggable="true"
+                                      @dragstart="dragStart(index, $event)"
+                                      @dragover.prevent="dragOver(index, $event)"
+                                      @dragleave="dragLeave($event)"
+                                      @drop="onDrop(index, $event)">
+                                    {{ header }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="multiselect-options" v-if="isPriceColumnDropdownOpen">
+                            <label v-for="header in priceColumnHeaders" :key="header" style="display: block; padding: 5px 10px;">
+                                <input type="checkbox" :value="header" v-model="selectedPriceHeaders"> {{ header }}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div>
+                <h4>Item List</h4>
+                <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
+                    <label>Select Table Columns to Display:</label>
+                    <div class="custom-multiselect" ref="columnSelector">
+                        <div class="multiselect-display" @click="toggleColumnDropdown">
+                            {{ selectedTableHeaders.length > 0 ? selectedTableHeaders.length + ' columns selected' : 'Columns Select' }}
+                        </div>
+                        <div class="multiselect-options" v-if="isColumnDropdownOpen">
+                            <label v-for="header in tableHeaders" :key="header" style="display: block; padding: 5px 10px;">
+                                <input type="checkbox" :value="header" v-model="selectedTableHeaders"> {{ header }}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script>
+        // VUE APPLICATION LOGIC
+        Vue.createApp({
+            // The template is now referenced from the script block above
+            template: '#order-form-template',
+            
+            data() {
+                return {
+                    activeTab: 'configuration',
+                    tableHeaders: [],
+                    tableData: [],
+                    isLoading: true,
+                    error: null,
+                    selectedBaseId: '',
+                    formSelections: {}, // To store selections for dynamic controls
+                    selectFrameColorDefaults: false, // For the new checkbox
+                    hoveredControlId: null, // To track which control is being hovered over
+                    isSpecialOrder: false,
+                    selectedTableHeaders: [],
+                    isColumnDropdownOpen: false,
+                    selectedPriceHeaders: ['MSRP 25'], // Default selected price column
+                    isPriceColumnDropdownOpen: false,
+                    dragData: {
+                        draggedIndex: null,
+                        draggedOverIndex: null
+                    }
+                };
+            },
+            
+            computed: {
+                baseProducts() {
+                    if (this.isLoading) return [];
+                    return this.tableData.filter(p => p.Section === 'Base');
+                },
+                selectedBase() {
+                    if (!this.selectedBaseId) return null;
+                    return this.tableData.find(p => p.ID === this.selectedBaseId);
+                },
+                selectedOptions() {
+                    const selections = {};
+                    for (const section in this.formSelections) {
+                        const selectedId = this.formSelections[section];
+                        if (selectedId) {
+                            const selectedObject = this.tableData.find(p => p.ID === selectedId);
+                            if (selectedObject) {
+                                selections[section] = selectedObject;
+                            }
+                        }
+                    }
+                    return selections;
+                },
+                finalConfigurationItems() {
+                    const items = [];
+
+                    // 1. Add the selected base product
+                    if (this.selectedBase) {
+                        items.push(this.selectedBase);
+                    }
+
+                    // 2. Add all other selected options
+                    for (const key in this.formSelections) {
+                        const value = this.formSelections[key];
+                        if (!value) continue; // Skip empty strings or false values
+
+                        let selectedItem = null;
+                        if (typeof value === 'string') { // It's a dropdown selection (ID)
+                            selectedItem = this.tableData.find(p => p.ID === value);
+                        } else if (value === true) { // It's a checkbox selection
+                            selectedItem = this.tableData.find(p => p.ID === key);
+                        }
+
+                        if (selectedItem) {
+                            items.push(selectedItem);
+                        }
+                    }
+                    return items;
+                },
+                totalPrice() {
+                    return this.finalConfigurationItems.reduce((total, item) => total + (parseFloat(item['MSRP 25']) || 0), 0);
+                },
+                isFormInvalid() {
+                    // 1. Check if a base is selected
+                    if (!this.selectedBaseId) return true;
+
+                    // 2. Check all visible required dropdowns
+                    for (const control of this.conditionalControls) {
+                        if (control.controlType === 'DDR' && !this.formSelections[control.id]) {
+                            return true; // Found an unselected required dropdown
+                        }
+                    }
+
+                    // 3. Check if Pattern is required and unselected
+                    if (this.isPatternRequired && !this.formSelections['Pattern']) {
+                        return true;
+                    }
+                    return false;
+                },
+                isPatternRequired() {
+                    return this.finalConfigurationItems.some(item => item.DESCRIPTION.includes('Hygienic'));
+                },
+                frameColorControl() {
+                    return this.conditionalControls.find(c => c.id === 'Frame Color');
+                },
+                otherConditionalControls() {
+                    return this.conditionalControls.filter(c => c.section !== 'Frame Color');
+                },
+                conditionalControls() {
+                    if (!this.selectedBase) return [];
+
+                    // Get a Set of all currently selected ITEM codes for efficient lookup.
+                    const selectedItemCodes = new Set(this.finalConfigurationItems.map(item => item.ITEM));
+
+                    // This is the new filter function. An item is valid if:
+                    // 1. It has no 'Requires' value.
+                    // 2. OR, at least one of its required items has been selected.
+                    const isRequirementMet = (row) => {
+                        if (!row.Requires) return true;
+                        return row.Requires.split(',').some(req => selectedItemCodes.has(req.trim()));
+                    };
+
+                    const baseCode = this.selectedBase.Base;
+                    const relevantRows = this.tableData.filter(row => {
+                        return row.Section !== 'Base' && row.Base && row.Base.split(',').map(b => b.trim()).includes(baseCode);
+                    });
+
+                    const combinedFrameSections = new Set(['Shadow Tray Frame', 'Column Frame', 'Mobile Frame', 'Swing-Away Frame']);
+                    const combinedFrameRows = this.tableData.filter(row => {
+                        return combinedFrameSections.has(row.Section) && row.Base && row.Base.split(',').map(b => b.trim()).includes(baseCode);
+                    });
+
+                    // This is the new filter function. An item is valid if:
+                    // 1. It has no 'Requires' value.
+                    // 2. OR, at least one of its required items has been selected.
+
+                    const finalControls = [];
+                    const processedSections = new Set();
+                    let combinedFrameControlAdded = false;
+
+                    for (const row of relevantRows) {
+                        if (row.Control === 'CB' && isRequirementMet(row)) {
+                            finalControls.push({
+                                id: row.ID,
+                                section: row.Section,
+                                label: `${row.ITEM} - ${row.DESCRIPTION}`,
+                                controlType: 'CB',
+                                price: row['MSRP 25']
+                            });
+                        } else if ((row.Control === 'DDR' || row.Control === 'DD')) {
+                            // Handle the combined frame control first
+                            if (combinedFrameSections.has(row.Section) && !combinedFrameControlAdded) {
+                                const availableOptions = combinedFrameRows.filter(r => isRequirementMet(r));
+                                if (availableOptions.length > 0) {
+                                    finalControls.push({
+                                        id: 'Front Frame',
+                                        section: 'Front Frame',
+                                        label: 'Front Frame',
+                                        options: availableOptions,
+                                        controlType: 'DDR' // All combined frames are required selections
+                                    });
+                                }
+                                combinedFrameSections.forEach(s => processedSections.add(s));
+                                combinedFrameControlAdded = true;
+                            }
+                            if (processedSections.has(row.Section)) continue;
+
+                            // Filter the options for this dropdown using the same 'Requires' logic.
+                            const availableOptions = relevantRows.filter(r => r.Section === row.Section && (r.Control === 'DDR' || r.Control === 'DD') && isRequirementMet(r));
+
+                            // Only show the dropdown if there are valid options to choose from.
+                            if (availableOptions.length > 0) {
+                                finalControls.push({
+                                    id: row.Section, // Group by section name
+                                    section: row.Section,
+                                    label: relevantRows.find(r => r.Section === row.Section && r.Control === 'Lable')?.DESCRIPTION || row.Section,
+                                    options: availableOptions,
+                                    controlType: row.Control
+                                });
+                                processedSections.add(row.Section);
+                            }
+                        }
+                    }
+                    return finalControls;
+                },
+                priceColumnHeaders() {
+                    if (!this.tableHeaders.length) return [];
+                    const headersToExclude = ['id']; // Exclude non-price numeric columns
+
+                    return this.tableHeaders.filter(header => {
+                        if (headersToExclude.includes(header.toLowerCase())) {
+                            return false;
+                        }
+                        // Condition 1: Header contains 'MSRP'
+                        if (header.toLowerCase().includes('msrp')) {
+                            return true;
+                        }
+                        // Condition 2: All values in the column are numeric (or empty)
+                        return this.tableData.every(row => {
+                            const value = row[header];
+                            return value === null || value === undefined || String(value).trim() === '' || !isNaN(Number(value));
+                        });
+                    });
+                }
+            },
+            
+            methods: {
+                getColumnClass(header) {
+                    switch (header) {
+                        case 'DESCRIPTION': return 'col-wide';
+                        case 'ID':
+                        case 'Control':
+                        case 'Base':
+                        case 'ITEM': return 'col-narrow';
+                        default: return '';
+                    }
+                },
+                async fetchCsvData() {
+                    this.isLoading = true;
+                    this.error = null;
+                    try {
+                        const response = await fetch('EPD.csv');
+                        if (!response.ok) {
+                            throw new Error(`Network response was not ok: ${response.statusText}`);
+                        }
+                        const csvText = await response.text();
+                        Papa.parse(csvText, {
+                            header: true,
+                            skipEmptyLines: true,
+                            complete: (results) => {
+                                if (results.errors.length > 0) {
+                                    console.error("CSV Parsing Errors:", results.errors);
+                                    throw new Error(`CSV Parsing Error: ${results.errors[0].message}`);
+                                }
+                                this.tableHeaders = results.meta.fields;
+                                this.tableData = results.data;
+                                // Set default visible columns
+                                this.selectedTableHeaders = ['ID', 'ITEM', 'DESCRIPTION', 'MSRP 25'];
+
+                                this.isLoading = false;
+                            }
+                        });
+                    } catch (error) {
+                        this.error = `Failed to load CSV data. Details: ${error.message}`;
+                        this.isLoading = false;
+                    }
+                },
+                clearConfiguration() {
+                    this.selectedBaseId = '';
+                    this.formSelections = {};
+                    this.selectFrameColorDefaults = false;
+                },
+                saveConfiguration() {
+                    const configData = {
+                        selectedBaseId: this.selectedBaseId,
+                        formSelections: this.formSelections,
+                        isSpecialOrder: this.isSpecialOrder
+                    };
+                    const jsonString = JSON.stringify(configData, null, 2);
+                    const blob = new Blob([jsonString], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = 'e-config.json';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                },
+                triggerFileLoad() {
+                    this.$refs.fileLoader.click();
+                },
+                handleFileLoad(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const config = JSON.parse(e.target.result);
+                            this.selectedBaseId = config.selectedBaseId || '';
+                            this.formSelections = config.formSelections || {};
+                            this.isSpecialOrder = config.isSpecialOrder || false;
+                        } catch (err) {
+                            alert('Error: Could not load invalid configuration file.');
+                        }
+                    };
+                    reader.readAsText(file);
+                    event.target.value = ''; // Reset file input
+                },
+                toggleColumnDropdown() {
+                    this.isColumnDropdownOpen = !this.isColumnDropdownOpen;
+                },
+                submitConfiguration() {
+                    if (this.isFormInvalid) {
+                        alert('Please complete all required fields.');
+                        return;
+                    }
+                    // If form is valid, switch to the config tab
+                    this.activeTab = 'summary';
+                },
+                isCheckboxDisabled(controlId) {
+                    // No specific checkbox disabling rules for this file.
+                    return false;
+                },
+                getHoveredItem(control) {
+                    if (control.id === 'base-product') {
+                        return this.selectedBase;
+                    }
+                    if (control.controlType === 'CB') {
+                        // For checkboxes, return the item if the box is checked
+                        return this.formSelections[control.id] ? this.tableData.find(p => p.ID === control.id) : null;
+                    }
+                    if (control.controlType === 'DDR' || control.controlType === 'DD') {
+                        // For dropdowns, return the selected option object
+                        return this.selectedOptions[control.id];
+                    }
+                    return null;
+                },
+                togglePriceColumnDropdown() {
+                    this.isPriceColumnDropdownOpen = !this.isPriceColumnDropdownOpen;
+                },
+                dragStart(index, event) {
+                    this.dragData.draggedIndex = index;
+                    event.dataTransfer.effectAllowed = 'move';
+                },
+                dragOver(index, event) {
+                    event.preventDefault(); // Necessary to allow dropping
+                    if (index !== this.dragData.draggedOverIndex) {
+                        this.dragData.draggedOverIndex = index;
+                        // Add a visual cue class to the element being dragged over
+                        event.target.classList.add('drag-over');
+                    }
+                },
+                dragLeave(event) {
+                    // Remove the visual cue when not dragging over an element anymore
+                    event.target.classList.remove('drag-over');
+                    this.dragData.draggedOverIndex = null;
+                },
+                onDrop(dropIndex, event) {
+                    event.target.classList.remove('drag-over');
+                    const draggedIndex = this.dragData.draggedIndex;
+
+                    if (draggedIndex === null || draggedIndex === dropIndex) {
+                        return; // No change if dropped on itself or if drag failed
+                    }
+
+                    // Reorder the array
+                    const itemToMove = this.selectedPriceHeaders.splice(draggedIndex, 1)[0];
+                    this.selectedPriceHeaders.splice(dropIndex, 0, itemToMove);
+                    this.dragData.draggedIndex = null; // Reset
+                },
+            },
+            
+            watch: {
+                isColumnDropdownOpen(isOpen) {
+                    if (isOpen) {
+                        // Add a click listener to the document to close the dropdown
+                        document.addEventListener('click', this.handleClickOutside);
+                    } else {
+                        // Remove the listener when the dropdown is closed
+                        document.removeEventListener('click', this.handleClickOutside);
+                    }
+                },
+                isPriceColumnDropdownOpen(isOpen) {
+                    if (isOpen) {
+                        // Add a click listener to the document to close the dropdown
+                        document.addEventListener('click', this.handlePriceClickOutside);
+                    } else {
+                        document.removeEventListener('click', this.handlePriceClickOutside);
+                    }
+                },
+                formSelections: {
+                    handler(newSelections) {
+                        // No specific rules for this file.
+                    },
+                    deep: true // Watch for changes inside the object
+                },
+                selectFrameColorDefaults(isDefaultsSelected) {
+                    if (isDefaultsSelected) {
+                        // Loop through the currently visible conditional controls
+                        for (const control of this.conditionalControls) {
+                            // We only care about required dropdowns (DDR)
+                            if (control.controlType === 'DDR') {
+                                // Find the default option within this control's options
+                                const defaultOption = control.options.find(opt => opt.Notes && opt.Notes.includes('Default'));
+                                
+                                // If a default option is found, select it
+                                if (defaultOption) {
+                                    this.formSelections[control.id] = defaultOption.ID;
+                                }
+                            }
+                        }
+                    }
+                },
+                conditionalControls(newControls) {
+                    // When the available controls change (e.g., after selecting a new base),
+                    // we must initialize their values in formSelections to an empty string.
+                    // This ensures the v-model is valid and the :invalid CSS pseudo-class
+                    // can apply correctly, making the placeholder visible.
+                    for (const control of newControls) {
+                        if ((control.controlType === 'DDR' || control.controlType === 'DD') && this.formSelections[control.id] === undefined) {
+                            this.formSelections[control.id] = ''; // Initialize both DDR and DD controls
+                        }
+                    }
+                }
+            },
+            
+            created() {
+                this.handleClickOutside = (event) => {
+                    // Close the dropdown if the click is outside the multiselect component
+                    if (this.$refs.columnSelector && !this.$refs.columnSelector.contains(event.target)) {
+                        this.isColumnDropdownOpen = false;
+                    }
+                };
+                this.handlePriceClickOutside = (event) => {
+                    // Close the price dropdown if the click is outside the component
+                    if (this.$refs.priceColumnSelector && !this.$refs.priceColumnSelector.contains(event.target)) {
+                        this.isPriceColumnDropdownOpen = false;
+                    }
+                };
+                this.fetchCsvData();
+            },
+        }).mount('#order-form-container');
+    </script>
+
+</body>
+</html>
