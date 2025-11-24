@@ -4,10 +4,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dynamic Order Form</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
+            authDomain: "amiapp-e1d48.firebaseapp.com",
+            projectId: "amiapp-e1d48",
+            storageBucket: "amiapp-e1d48.appspot.com",
+            messagingSenderId: "709156310854",
+            appId: "1:709156310854:web:464a879038815ede871f47",
+            measurementId: "G-TKSX1GEVSS"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        firebase.auth().onAuthStateChanged(user => {
+            // App can be used by anonymous users
+        });
+    </script>
     <!-- A simple, clean CSS framework for styling -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
     <style>
-        #order-form-container { max-width: 600px; margin: 2rem auto; padding: 5px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9; }
+        #order-form-container { max-width: 900px; margin: 2rem auto; padding: 5px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9; }
         .tab-nav {
             display: flex;
             border-bottom: 1px solid #ccc;
@@ -26,6 +53,12 @@
             border-color: #ccc;
             border-bottom: 1px solid #f9f9f9;
             margin-bottom: -1px;
+        }
+        .settings-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px 8px; /* Adjust padding for icon */
         }
         .table-container {
             overflow: auto; /* Enable both horizontal and vertical scrolling */
@@ -159,6 +192,24 @@
             max-height: 200px;
             overflow-y: auto;
         }
+        .selected-items-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            padding: 5px;
+        }
+        .selected-item-tag {
+            background-color: #e0e0e0;
+            padding: 3px 8px;
+            border-radius: 4px;
+            cursor: move;
+            font-size: 0.8rem;
+            border: 1px solid #ccc;
+        }
+        .drag-over {
+            background-color: #3498db;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -179,13 +230,20 @@
       By separating it, we make both the template and the logic easier to read.
     -->
     <script type="text/x-template" id="order-form-template">
-        <h2 style="text-align: center; margin-top: 4px; margin-bottom: 4px;">Zing 1</h2>
+        <div style="display: flex; justify-content: center; align-items: center; position: relative; margin-top: 4px; margin-bottom: 4px;">
+            <a href="index.html" title="Home" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-main);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+            </a>
+            <h2 style="margin: 0;">Zing 1</h2>
+        </div>
         <!-- Tab Navigation -->
         <div class="tab-nav">
             <button @click="activeTab = 'configuration'" :class="{ active: activeTab === 'configuration' }">Build</button>
             <button @click="activeTab = 'person'" :class="{ active: activeTab === 'person' }">Order Details</button>
             <button @click="activeTab = 'table'" :class="{ active: activeTab === 'table' }">Item List</button>
-            <button @click="activeTab = 'config'" :class="{ active: activeTab === 'config' }">Config</button>
+            <button @click="activeTab = 'summary'" :class="{ active: activeTab === 'summary' }">Summary</button>
+            <button v-if="isLoggedIn" @click="activeTab = 'my-builds'" :class="{ active: activeTab === 'my-builds' }">My Builds</button>
+            <button @click="activeTab = 'settings'" :class="['settings-button', { active: activeTab === 'settings' }]" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311a1.464 1.464 0 0 1-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c-1.4-.413-1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z"/></svg></button>
         </div>
 
         <!-- Tab Content -->
@@ -240,7 +298,7 @@
                                 <button @click.prevent="saveConfiguration" type="button" class="clear-button">
                                     Save
                                 </button>
-                                <button @click.prevent="triggerFileLoad" type="button" class="clear-button">
+                                <button @click.prevent="loadConfiguration" type="button" class="clear-button">
                                     Load
                                 </button>
                                 <button @click.prevent="submitConfiguration" type="button" class="clear-button submit-button" :class="{ 'invalid-submit': isFormInvalid }">
@@ -308,29 +366,75 @@
 
         <div v-show="activeTab === 'person'">
             <h2>Order Details</h2>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" v-model="isSpecialOrder"> Special
-                </label>
+            <div style="display: flex; gap: 2rem;">
+                <div style="flex: 1;">
+                    <div class="form-group">
+                        <label for="po-number">Purchase Order #</label>
+                        <input type="text" id="po-number">
+                    </div>
+                    <div class="form-group">
+                        <label for="quote-number">Quote #</label>
+                        <input type="text" id="quote-number">
+                    </div>
+                    <div class="form-group">
+                        <label for="account-number">Account #</label>
+                        <input type="text" id="account-number">
+                    </div>
+                    <div class="form-group">
+                        <label for="ordered-by">Ordered By:</label>
+                        <input type="text" id="ordered-by">
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-company">Supplier Company:</label>
+                        <input type="text" id="supplier-company">
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-address">Address:</label>
+                        <textarea id="supplier-address" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-phone">Phone:</label>
+                        <input type="tel" id="supplier-phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-email">Email:</label>
+                        <input type="email" id="supplier-email">
+                    </div>
+                    <div class="form-group">
+                        <label for="payer-source">Payer Source:</label>
+                        <input type="text" id="payer-source">
+                    </div>
+                    <div class="form-group">
+                        <label for="atp-name">Name of ATP (Required):</label>
+                        <input type="text" id="atp-name" required>
+                    </div>
+                </div>
+                <div style="flex: 1;">
+                    <h4>Ship To:</h4>
+                    <div class="form-group">
+                        <label for="ship-to-name">Name:</label>
+                        <input type="text" id="ship-to-name">
+                    </div>
+                    <div class="form-group">
+                        <label for="ship-to-address">Address:</label>
+                        <textarea id="ship-to-address" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="ship-to-phone">Phone:</label>
+                        <input type="tel" id="ship-to-phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="tag-for">Tag For:</label>
+                        <input type="text" id="tag-for">
+                    </div>
+                </div>
             </div>
         </div>
 
         <div v-show="activeTab === 'table'">
             <div v-if="isLoading" class="loading">Loading Table Data...</div>
             <div v-if="error" class="error">{{ error }}</div>
-            <div v-if="!isLoading && !error">
-                <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
-                    <div class="custom-multiselect" ref="columnSelector">
-                        <div class="multiselect-display" @click="toggleColumnDropdown">
-                            {{ selectedTableHeaders.length > 0 ? selectedTableHeaders.length + ' columns selected' : 'Columns Select' }}
-                        </div>
-                        <div class="multiselect-options" v-if="isColumnDropdownOpen">
-                            <label v-for="header in tableHeaders" :key="header" style="display: block; padding: 5px 10px;">
-                                <input type="checkbox" :value="header" v-model="selectedTableHeaders"> {{ header }}
-                            </label>
-                        </div>
-                    </div>
-                </div>
+            <div v-if="!isLoading && !error" style="padding-top: 1rem;">
                 <div class="table-container">
                 <table>
                     <thead>
@@ -350,8 +454,8 @@
             </div>
         </div>
 
-        <div v-show="activeTab === 'config'">
-            <h2>Configuration Summary</h2>
+        <div v-show="activeTab === 'summary'">
+            <h2>Summary</h2>
             <div v-if="finalConfigurationItems.length > 0" class="table-container">
                 <table>
                     <thead>
@@ -380,6 +484,66 @@
             </div>
             <p v-else>No items have been configured yet.</p>
         </div>
+
+        <div v-if="isLoggedIn" v-show="activeTab === 'my-builds'">
+            <h2>My Saved Builds</h2>
+            <div v-if="savedBuilds.length > 0" class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Product</th>
+                            <th>Last Saved</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="build in savedBuilds" :key="build.id">
+                            <td>
+                                <a href="#" @click.prevent="promptAndRenameBuild(build)">{{ build.configurationName }}</a>
+                            </td>
+                            <td>{{ build.productName }}</td>
+                            <td>{{ new Date(build.updatedAt.seconds * 1000).toLocaleString() }}</td>
+                            <td>
+                                <button @click="loadSavedConfiguration(build)" class="clear-button">Load</button>
+                                <button @click="deleteSavedConfiguration(build.id)" class="clear-button" style="color: red;">Delete</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p v-else>You have no saved builds for this product.</p>
+        </div>
+
+        <div v-show="activeTab === 'settings'">
+            <h2>Settings</h2>
+            
+            <div>
+                <h4>General</h4>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" v-model="isSpecialOrder"> Mark as Special Order
+                    </label>
+                </div>
+            </div>
+            <hr>
+            <div>
+                <h4>Item List</h4>
+                <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
+                    <label>Select Table Columns to Display:</label>
+                    <div class="custom-multiselect" ref="columnSelector">
+                        <div class="multiselect-display" @click="toggleColumnDropdown">
+                            {{ selectedTableHeaders.length > 0 ? selectedTableHeaders.length + ' columns selected' : 'Columns Select' }}
+                        </div>
+                        <div class="multiselect-options" v-if="isColumnDropdownOpen">
+                            <label v-for="header in tableHeaders" :key="header" style="display: block; padding: 5px 10px;">
+                                <input type="checkbox" :value="header" v-model="selectedTableHeaders"> {{ header }}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </script>
 
     <script>
@@ -402,6 +566,8 @@
                     isSpecialOrder: false,
                     selectedTableHeaders: [],
                     isColumnDropdownOpen: false,
+                    isLoggedIn: false,
+                    savedBuilds: [],
                 };
             },
             
@@ -547,33 +713,28 @@
                         default: return '';
                     }
                 },
-                async fetchCsvData() {
+                async fetchProductData() {
                     this.isLoading = true;
                     this.error = null;
                     try {
-                        const response = await fetch('Z1PD.csv');
-                        if (!response.ok) {
-                            throw new Error(`Network response was not ok: ${response.statusText}`);
-                        }
-                        const csvText = await response.text();
-                        Papa.parse(csvText, {
-                            header: true,
-                            skipEmptyLines: true,
-                            complete: (results) => {
-                                if (results.errors.length > 0) {
-                                    console.error("CSV Parsing Errors:", results.errors);
-                                    throw new Error(`CSV Parsing Error: ${results.errors[0].message}`);
-                                }
-                                this.tableHeaders = results.meta.fields;
-                                this.tableData = results.data;
-                                // Set default visible columns
-                                this.selectedTableHeaders = ['ID', 'ITEM', 'DESCRIPTION', 'MSRP 25'];
+                        const docRef = db.collection("product_data").doc("zing1");
+                        const doc = await docRef.get();
 
-                                this.isLoading = false;
+                        if (doc.exists) {
+                            const productData = doc.data().items;
+                            if (productData && productData.length > 0) {
+                                this.tableHeaders = Object.keys(productData[0]);
+                                this.tableData = productData;
+                                this.selectedTableHeaders = ['ID', 'ITEM', 'DESCRIPTION', 'MSRP 25'];
+                            } else {
+                                throw new Error("Product data is empty.");
                             }
-                        });
+                        } else {
+                            throw new Error("No product data found for 'zing1' in the database.");
+                        }
+                        this.isLoading = false;
                     } catch (error) {
-                        this.error = `Failed to load CSV data. Details: ${error.message}`;
+                        this.error = `Failed to load product data. Details: ${error.message}`;
                         this.isLoading = false;
                     }
                 },
@@ -582,25 +743,41 @@
                     this.formSelections = {};
                     this.selectFrameColorDefaults = false;
                 },
-                saveConfiguration() {
-                    const configData = {
-                        selectedBaseId: this.selectedBaseId,
-                        formSelections: this.formSelections,
-                        isSpecialOrder: this.isSpecialOrder
+                async saveConfiguration() {
+                    const user = firebase.auth().currentUser;
+                    if (!user) {
+                        alert("Please log in to save your configuration.");
+                        window.location.href = `login.html?redirect=${window.location.pathname.split('/').pop()}`;
+                        return;
+                    }
+
+                    const buildName = prompt("Please enter a name for this build:", "My Zing 1 Build") || `Zing 1 Build ${new Date().toLocaleString()}`;
+                    if (!buildName) return;
+
+                    const configToSave = {
+                        ownerId: user.uid,
+                        productName: "Zing Size 1",
+                        configurationName: buildName,
+                        configData: {
+                            selectedBaseId: this.selectedBaseId,
+                            formSelections: this.formSelections,
+                            isSpecialOrder: this.isSpecialOrder
+                        },
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     };
-                    const jsonString = JSON.stringify(configData, null, 2);
-                    const blob = new Blob([jsonString], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = 'zing1-config.json';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
+
+                    try {
+                        await db.collection("configurations").add(configToSave);
+                        alert(`Configuration "${buildName}" saved successfully!`);
+                        this.fetchSavedBuilds();
+                    } catch (error) {
+                        console.error("Error saving configuration: ", error);
+                        alert("There was an error saving your configuration.");
+                    }
                 },
                 triggerFileLoad() {
-                    this.$refs.fileLoader.click();
+                    alert("To load a saved build, please log in and use the 'My Builds' tab.");
                 },
                 handleFileLoad(event) {
                     const file = event.target.files[0];
@@ -629,7 +806,7 @@
                         return;
                     }
                     // If form is valid, switch to the config tab
-                    this.activeTab = 'config';
+                    this.activeTab = 'summary';
                 },
                 isCheckboxDisabled(controlId) {
                     if (controlId === 'Z201') return this.formSelections['Z25'];
@@ -650,6 +827,59 @@
                     }
                     return null;
                 },
+                loadConfiguration() {
+                    const user = firebase.auth().currentUser;
+                    if (!user) {
+                        alert("Please log in to load a configuration.");
+                        window.location.href = `login.html?redirect=${window.location.pathname.split('/').pop()}`;
+                        return;
+                    }
+                    this.activeTab = 'my-builds';
+                },
+                async fetchSavedBuilds() {
+                    const user = firebase.auth().currentUser;
+                    if (!user) return;
+
+                    try {
+                        const snapshot = await db.collection("configurations")
+                            .where("ownerId", "==", user.uid)
+                            .where("productName", "==", "Zing Size 1")
+                            .orderBy("updatedAt", "desc")
+                            .get();
+                        
+                        this.savedBuilds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    } catch (error) {
+                        console.error("Error fetching saved builds: ", error);
+                        alert("Could not fetch your saved builds.");
+                    }
+                },
+                loadSavedConfiguration(build) {
+                    if (!build || !build.configData) return;
+                    this.selectedBaseId = build.configData.selectedBaseId || '';
+                    this.$nextTick(() => {
+                        this.formSelections = build.configData.formSelections || {};
+                        this.isSpecialOrder = build.configData.isSpecialOrder || false;
+                    });
+                    alert(`Configuration "${build.configurationName}" loaded.`);
+                    this.activeTab = 'configuration';
+                },
+                async deleteSavedConfiguration(docId) {
+                    if (!confirm("Are you sure you want to delete this build? This cannot be undone.")) return;
+                    try {
+                        await db.collection("configurations").doc(docId).delete();
+                        alert("Configuration deleted.");
+                        this.fetchSavedBuilds();
+                    } catch (error) {
+                        console.error("Error deleting configuration: ", error);
+                    }
+                },
+                async promptAndRenameBuild(build) {
+                    const newName = prompt("Enter a new name for this build:", build.configurationName);
+                    if (newName && newName !== build.configurationName) {
+                        await db.collection("configurations").doc(build.id).update({ configurationName: newName, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        this.fetchSavedBuilds();
+                    }
+                },
             },
             
             watch: {
@@ -660,6 +890,11 @@
                     } else {
                         // Remove the listener when the dropdown is closed
                         document.removeEventListener('click', this.handleClickOutside);
+                    }
+                },
+                activeTab(newTab) {
+                    if (newTab === 'my-builds') {
+                        this.fetchSavedBuilds();
                     }
                 },
                 formSelections: {
@@ -708,7 +943,14 @@
                         this.isColumnDropdownOpen = false;
                     }
                 };
-                this.fetchCsvData();
+                this.fetchProductData();
+
+                firebase.auth().onAuthStateChanged(user => {
+                    this.isLoggedIn = !!user;
+                    if (this.isLoggedIn) {
+                        this.fetchSavedBuilds();
+                    }
+                });
             },
         }).mount('#order-form-container');
     </script>

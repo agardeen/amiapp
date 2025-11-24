@@ -1,0 +1,17 @@
+# Ignore sensitive files
+service-account-key.json
+
+# Ignore Node.js dependencies folder
+/node_modules
+
+# Firebase and Node.js dependencies
+node_modules/
+functions/node_modules/
+
+# Private credential files
+service-account-key.json
+functions/service-account-key.json
+
+# Firebase emulator data
+.firebase/
+firebase-debug.log

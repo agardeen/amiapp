@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Edit Shower Commode Data</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        #admin-container { max-width: 95%; margin: 2rem auto; }
+        .controls { margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; }
+        .status { font-style: italic; }
+        .controls button { padding: 4px 12px; font-size: 0.8rem; margin: 0; }
+        .table-container { overflow: auto; max-height: 80vh; border-top: 1px solid #ddd; }
+        table { border-collapse: collapse; table-layout: fixed; min-width: 1800px; }
+        th, td { padding: 1px 6px; border: 1px solid #ddd; text-align: left; font-size: 0.8rem; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .filter-icon { cursor: pointer; font-weight: bold; padding: 0 4px; }
+        .filter-input { width: 100%; box-sizing: border-box; margin-top: 2px; }
+        thead th { background-color: #f2f2f2; position: sticky; top: 0; z-index: 10; user-select: none; position: relative; }
+        .resizer { position: absolute; top: 0; right: 0; width: 5px; height: 100%; cursor: col-resize; }
+        th.col-id, td.col-id { position: sticky; left: 0; width: 3%; min-width: 50px; background-color: #f9f9f9; z-index: 2; }
+        thead th.col-id { z-index: 11; background-color: #f2f2f2; }
+        th.col-control, th.col-item, th.col-base, th.col-msrp { width: 7%; min-width: 100px; }
+        th.col-description, th.col-notes, th.col-link { width: 20%; min-width: 200px; }
+        td { word-break: break-word; max-width: 0; }
+        td input { width: 100%; box-sizing: border-box; border: 1px solid transparent; background: transparent; padding: 2px; font-size: 0.8rem; }
+        td input:focus { border: 1px solid blue; background: white; }
+        .access-denied { text-align: center; padding: 4rem; color: red; }
+        .custom-multiselect { position: relative; min-width: 200px; width: 250px; }
+        .multiselect-display { border: 1px solid #ccc; padding: 4px 8px; cursor: pointer; background-color: white; border-radius: 4px; display: flex; align-items: center; font-size: 0.8rem; }
+        .multiselect-options { position: absolute; top: 100%; left: 0; right: 0; border: 1px solid #ccc; border-top: none; background-color: white; z-index: 1000; max-height: 300px; overflow-y: auto; }
+        .multiselect-display::after { content: '▼'; margin-left: auto; font-size: 0.7rem; }
+        .readonly-input { background-color: #eee; cursor: not-allowed; }
+        .sync-icon { width: 1em; height: 1em; margin-right: 0.5em; vertical-align: -0.15em; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .syncing-icon { animation: spin 1s linear infinite; }
+        #admin-container h1 { font-size: 1.5rem; margin-bottom: 1.2rem; }
+    </style>
+</head>
+<body>
+
+    <div id="admin-container"></div>
+
+    <script src="https://unpkg.com/vue@3"></script>
+    <script type="text/x-template" id="admin-template">
+        <div v-if="!isAuthorized" class="access-denied">
+            <h1>Access Denied</h1>
+            <p>You do not have permission to view this page. <a href="index.html">Return to homepage</a>.</p>
+        </div>
+        <div v-else>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <a href="index.html" title="Home" style="color: var(--text-main);">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+                </a>
+                <h1>Edit Shower Commode Product Data</h1>
+            </div>
+            <div class="controls">
+                <button @click="triggerSheetSync" :disabled="isSyncing" style="display: inline-flex; align-items: center;">
+                    <svg :class="{'syncing-icon': isSyncing}" class="sync-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+                    <span>{{ isSyncing ? 'Syncing...' : 'Sync from Sheets' }}</span>
+                </button>
+                <button @click="saveChanges" :disabled="!isDirty || isLoading">Save Changes</button>
+                <button @click="discardChanges" :disabled="!isDirty || isLoading">Discard Changes</button>
+                <div class="custom-multiselect" ref="columnSelector">
+                    <div class="multiselect-display" @click="toggleColumnDropdown" style="justify-content: space-between;">
+                        <span>{{ columnSelectorText }}</span>
+                    </div>
+                    <div class="multiselect-options" v-if="isColumnDropdownOpen">
+                        <label v-for="header in availableHeaders" :key="header" style="display: block; padding: 5px 10px;">
+                            <input type="checkbox" :value="header" v-model="selectedHeaders"> {{ header }}
+                        </label>
+                    </div>
+                </div>
+                <a href="https://docs.google.com/spreadsheets/d/1CDec57RIPeLYhuAYjQWExZqfJeKqGemyftLmSaFMdCM/edit#gid=1342133365" target="_blank" title="Open Google Sheet">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/30/Google_Sheets_logo_%282014-2020%29.svg" alt="Google Sheets Logo" style="height: 28px; vertical-align: middle;">
+                </a>
+                <button @click="clearAllFilters" :disabled="!hasActiveFilters" title="Clear All Filters" style="padding: 4px; line-height: 0;">
+                    <svg class="sync-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+                </button>
+                <p v-if="isDirty" class="status" style="margin-left: auto;">You have unsaved changes.</p>
+            </div>
+
+            <div v-if="isLoading" class="loading">Loading data from Firestore...</div>
+            <div v-if="error" class="access-denied">{{ error }}</div>
+
+            <div v-if="!isLoading && !error" class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="col-id" :style="columnStyles['ID']">
+                                <div class="header-content" @click="sortBy('ID')">
+                                    <span>ID<span v-if="sortColumn === 'ID'">{{ sortDirection === 'asc' ? '▲' : '▼' }}</span></span>
+                                </div>
+                                <div class="resizer" @mousedown="startResize($event, 'ID')"></div>
+                            </th>
+                            <th v-for="header in selectedHeaders" :key="header" :class="getColumnClass(header)" :style="columnStyles[header]">
+                                <div class="header-content" @click="sortBy(header)">
+                                    <span>{{ header }}<span v-if="sortColumn === header">{{ sortDirection === 'asc' ? '▲' : '▼' }}</span></span>
+                                    <span class="filter-icon" @click.stop="toggleFilter(header)">&#9776;</span>
+                                </div>
+                                <input v-if="activeFilter === header" type="text" class="filter-input" v-model="filters[header]" @click.stop :placeholder="`Filter ${header}...`">
+                                <div class="resizer" @mousedown="startResize($event, header)"></div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(item, rowIndex) in filteredAndSortedData" :key="item.ID || rowIndex" >
+                            <td class="col-id" :style="columnStyles['ID']"><input type="text" :value="item.ID" readonly class="readonly-input"></td>
+                            <td v-for="header in selectedHeaders" :key="header" :class="getColumnClass(header)">
+                                <input type="text" v-model="item[header]" @input="markAsDirty">
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
+            authDomain: "amiapp-e1d48.firebaseapp.com",
+            projectId: "amiapp-e1d48",
+            storageBucket: "amiapp-e1d48.appspot.com",
+            messagingSenderId: "709156310854",
+            appId: "1:709156310854:web:464a879038815ede871f47",
+            measurementId: "G-TKSX1GEVSS"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        Vue.createApp({
+            template: '#admin-template',
+            data() {
+                return {
+                    isAuthorized: false,
+                    isLoading: true,
+                    isSyncing: false,
+                    isDirty: false,
+                    error: null,
+                    headers: [],
+                    originalData: [],
+                    localData: [],
+                    selectedHeaders: [],
+                    filters: {},
+                    activeFilter: null,
+                    isColumnDropdownOpen: false,
+                    sortColumn: 'ID',
+                    sortDirection: 'asc',
+                    columnStyles: {},
+                    isResizing: false,
+                    storageKey: 'scColumnStyles'
+                };
+            },
+            computed: {
+                availableHeaders() { return this.headers.filter(h => h !== 'ID'); },
+                columnSelectorText() {
+                    const selectedCount = this.selectedHeaders.length;
+                    const totalCount = this.availableHeaders.length;
+                    if (selectedCount === 0) return "Select Columns";
+                    if (selectedCount === totalCount) return "All Columns Shown";
+                    return `${selectedCount} of ${totalCount} Columns Shown`;
+                },
+                hasActiveFilters() { return Object.values(this.filters).some(val => val && val.length > 0); },
+                filteredAndSortedData() {
+                    let filtered = this.localData.filter(item => {
+                        return Object.keys(this.filters).every(header => {
+                            const filterValue = this.filters[header]?.toLowerCase();
+                            if (!filterValue) return true;
+                            const itemValue = String(item[header] || '').toLowerCase();
+                            return itemValue.includes(filterValue);
+                        });
+                    });
+                    return this.sortData(filtered);
+                }
+            },
+            methods: {
+                async checkAuthorization() {
+                    const user = getAuth().currentUser;
+                    if (!user) {
+                        window.location.href = `login.html?redirect=admin-sc.html`;
+                        return;
+                    }
+                    try {
+                        const userDoc = await getDoc(doc(db, 'users', user.uid));
+                        if (userDoc.exists && userDoc.data().role === 'Admin1') {
+                            this.isAuthorized = true;
+                            this.fetchProductData();
+                        } else {
+                            this.isAuthorized = false;
+                            this.isLoading = false;
+                        }
+                    } catch (err) {
+                        this.error = "Error checking user permissions.";
+                        this.isLoading = false;
+                    }
+                },
+                async fetchProductData() {
+                    this.isLoading = true;
+                    this.error = null;
+                    try {
+                        const docRef = doc(db, "product_data", "sc");
+                        const docSnap = await getDoc(docRef);
+                        if (docSnap.exists()) {
+                            let items = docSnap.data().items || [];
+                            if (items.length > 0) {
+                                this.headers = docSnap.data().headers || Object.keys(items[0]);
+                                this.selectedHeaders = this.headers.filter(h => h !== 'ID');
+                                this.initializeFilters();
+                                this.originalData = JSON.parse(JSON.stringify(items));
+                                this.localData = JSON.parse(JSON.stringify(items));
+                                this.isDirty = false;
+                            } else { throw new Error("Product data is empty."); }
+                        } else { throw new Error("No product data found for 'sc' in the database."); }
+                    } catch (err) {
+                        this.error = `Error fetching data: ${err.message}`;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                markAsDirty() { this.isDirty = true; },
+                discardChanges() {
+                    if (confirm("Are you sure you want to discard all changes?")) {
+                        this.localData = JSON.parse(JSON.stringify(this.originalData));
+                        this.initializeFilters();
+                        this.isDirty = false;
+                    }
+                },
+                async saveChanges() {
+                    if (!confirm("Are you sure you want to save these changes to the database?")) return;
+                    this.isLoading = true;
+                    try {
+                        const docRef = doc(db, "product_data", "sc");
+                        await updateDoc(docRef, { items: this.localData });
+                        this.originalData = JSON.parse(JSON.stringify(this.localData));
+                        this.isDirty = false;
+                        alert("Changes saved successfully!");
+                    } catch (err) {
+                        this.error = `Error saving changes: ${err.message}`;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                sortBy(header) {
+                    if (this.sortColumn === header) {
+                        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortColumn = header;
+                        this.sortDirection = 'asc';
+                    }
+                },
+                sortData(data) {
+                    const sortedData = [...data];
+                    const header = this.sortColumn;
+                    const direction = this.sortDirection;
+                    sortedData.sort((a, b) => {
+                        let valA = a[header], valB = b[header];
+                        if (header === 'ID') {
+                            const numA = parseInt((valA || '').match(/\d+/)?.[0] || 0, 10);
+                            const numB = parseInt((valB || '').match(/\d+/)?.[0] || 0, 10);
+                            return direction === 'asc' ? numA - numB : numB - numA;
+                        }
+                        if (valA < valB) return direction === 'asc' ? -1 : 1;
+                        if (valA > valB) return direction === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+                    return sortedData;
+                },
+                toggleFilter(header) { this.activeFilter = this.activeFilter === header ? null : header; },
+                initializeFilters() {
+                    this.filters = this.headers.reduce((acc, header) => ({ ...acc, [header]: '' }), {});
+                },
+                toggleColumnDropdown() { this.isColumnDropdownOpen = !this.isColumnDropdownOpen; },
+                clearAllFilters() { this.initializeFilters(); },
+                async triggerSheetSync() {
+                    if (!confirm("This will overwrite Firestore data with data from the Google Sheet. Continue?")) return;
+                    this.isSyncing = true;
+                    this.error = null;
+                    try {
+                        const functionUrl = 'https://us-central1-amiapp-e1d48.cloudfunctions.net/syncSheet';
+                        const response = await fetch(functionUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ data: {
+                                sheetId: '1CDec57RIPeLYhuAYjQWExZqfJeKqGemyftLmSaFMdCM',
+                                sheetName: 'SC',
+                                docId: 'sc'
+                            }})
+                        });
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => null);
+                            throw new Error(errorData?.data?.message || `Function responded with status: ${response.status}`);
+                        }
+                        const result = await response.json();
+                        if (result.data.success) {
+                            alert(`Sync successful! ${result.data.message}`);
+                            await this.fetchProductData(); 
+                        } else {
+                            throw new Error(result.data.message || 'The function reported an unknown failure.');
+                        }
+                    } catch (err) {
+                        this.error = `Sync failed: ${err.message}`;
+                    } finally {
+                        this.isSyncing = false;
+                    }
+                },
+                getColumnClass(header) { return 'col-' + header.toLowerCase().replace(/[^a-z0-9]/g, ''); },
+                startResize(event, header) {
+                    this.isResizing = true;
+                    const startX = event.clientX;
+                    const th = event.target.parentElement;
+                    const startWidth = th.offsetWidth;
+                    const onMouseMove = (e) => {
+                        if (!this.isResizing) return;
+                        const newWidth = startWidth + (e.clientX - startX);
+                        this.columnStyles[header] = { 'width': `${newWidth}px`, 'min-width': `${newWidth}px` };
+                    };
+                    const onMouseUp = () => {
+                        this.isResizing = false;
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                        localStorage.setItem(this.storageKey, JSON.stringify(this.columnStyles));
+                    };
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                }
+            },
+            created() {
+                const savedStyles = localStorage.getItem(this.storageKey);
+                if (savedStyles) this.columnStyles = JSON.parse(savedStyles);
+                onAuthStateChanged(getAuth(), (user) => { this.$nextTick(() => this.checkAuthorization()); });
+                this.handleClickOutside = (event) => {
+                    if (this.$refs.columnSelector && !this.$refs.columnSelector.contains(event.target)) {
+                        this.isColumnDropdownOpen = false;
+                    }
+                };
+                document.addEventListener('click', this.handleClickOutside);
+            },
+            beforeUnmount() { document.removeEventListener('click', this.handleClickOutside); },
+            watch: {
+                headers(newHeaders) { this.selectedHeaders = newHeaders.filter(h => h !== 'ID'); }
+            }
+        }).mount('#admin-container');
+    </script>
+
+</body>
+</html>

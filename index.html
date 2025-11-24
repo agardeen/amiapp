@@ -25,11 +25,24 @@
         }
         ul { list-style-type: none; padding: 0; }
         li { margin: 1.5rem 0; }
-        a { font-size: 1.25rem; text-decoration: none; }
-        a:hover { color: #007bff; }
+        .product-link { font-size: 1.25rem; text-decoration: none; }
+        .product-link:hover { color: #007bff; }
+        .logout-button {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+        }
     </style>
 </head>
 <body>
+    <div id="auth-container">
+        <!-- This button will be updated by JavaScript -->
+        <button id="auth-button" class="logout-button">Login</button>
+    </div>
+    <div id="admin-link-container" style="position: absolute; top: 4rem; right: 1rem;">
+        <!-- Admin link will be injected here -->
+    </div>
+
     <div class="container">
         <h2>Product Configurators</h2>
         <p>Please select a product to begin configuration.</p>
@@ -38,27 +51,93 @@
         </ul>
     </div>
 
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
     <script>
-        // To add a new page link, add a new entry to this 'pages' array.
-        const pages = [
-            { href: 'z1of.html', text: 'Zing Size 1' },
-            { href: 'z2of.html', text: 'Zing Size 2' },
-            { href: 'SC.html', text: 'Shower Commode (Multi-Price)' },
-            { href: 'SCof.html', text: 'Shower Commode (MSRP 25)' },
-            { href: 'SCof26.html', text: 'Shower Commode (MSRP 26)' }
-        ];
+        // IMPORTANT: Paste your Firebase config object here
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
+            authDomain: "amiapp-e1d48.firebaseapp.com",
+            projectId: "amiapp-e1d48",
+            storageBucket: "amiapp-e1d48.appspot.com",
+            messagingSenderId: "709156310854",
+            appId: "1:709156310854:web:464a879038815ede871f47",
+            measurementId: "G-TKSX1GEVSS"
+        };
 
-        const productLinksList = document.getElementById('product-links');
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
 
-        pages.forEach(page => {
-            const listItem = document.createElement('li');
-            const link = document.createElement('a');
-            link.href = page.href;
-            link.textContent = page.text;
-            listItem.appendChild(link);
-            productLinksList.appendChild(listItem);
+        const authButton = document.getElementById('auth-button');
+        const adminLinkContainer = document.getElementById('admin-link-container');
+
+        // Listen for auth state changes
+        auth.onAuthStateChanged(async user => {
+            adminLinkContainer.innerHTML = ''; // Clear admin link on auth change
+            if (user) {
+                // User is logged in
+                authButton.textContent = 'Logout';
+                authButton.onclick = () => auth.signOut();
+
+                // Check if user is an admin
+                try {
+                    const userDoc = await db.collection('users').doc(user.uid).get();
+                    if (userDoc.exists && userDoc.data().role === 'Admin1') {
+                        adminLinkContainer.innerHTML = `
+                            <a href="admin-bantamsx.html" style="display: block; margin-bottom: 0.5rem;">Edit BantamSX Data</a>
+                            <a href="admin-bantamm.html" style="display: block; margin-bottom: 0.5rem;">Edit BantamM Data</a>
+                            <a href="admin-glider.html" style="display: block; margin-bottom: 0.5rem;">Edit Glider Data</a>
+                            <a href="admin-strapstand.html" style="display: block; margin-bottom: 0.5rem;">Edit StrapStand Data</a>
+                            <a href="admin-zingp.html" style="display: block; margin-bottom: 0.5rem;">Edit ZingP Data</a>
+                            <hr>
+                            <a href="admin-evolv.html" style="display: block; margin-top: 0.5rem; margin-bottom: 0.5rem;">Edit Evolv Data</a>
+                            <a href="admin-sc.html" style="display: block; margin-bottom: 0.5rem;">Edit SC Data</a>
+                            <a href="admin-zing1.html" style="display: block; margin-bottom: 0.5rem;">Edit Zing1 Data</a>
+                            <a href="admin-zing2.html" style="display: block; margin-bottom: 0.5rem;">Edit Zing2 Data</a>
+                        `;
+                    }
+                } catch (err) {
+                    console.error("Error checking admin status:", err);
+                }
+
+            } else {
+                // User is not logged in
+                authButton.textContent = 'Login';
+                authButton.onclick = () => window.location.href = 'login.html';
+            }
         });
+
+        // This function now runs for everyone
+        buildProductLinks();
+
+        function buildProductLinks() {
+            const pages = [
+                { href: 'Eof.html', text: 'Evolv' },
+                { href: 'SC.html', text: 'Shower Commode (Multi-Price)' },
+                { href: 'SCof.html', text: 'Shower Commode (MSRP 25)' },
+                { href: 'SCof26.html', text: 'Shower Commode (MSRP 26)' },
+                { href: 'z1of.html', text: 'Zing Size 1' },
+                { href: 'z2of.html', text: 'Zing Size 2' }
+            ];
+            const productLinksList = document.getElementById('product-links');
+            productLinksList.innerHTML = ''; // Clear existing links
+            pages.forEach(page => {
+                const listItem = document.createElement('li');
+                const link = document.createElement('a');
+                link.classList.add('product-link');
+                link.href = page.href;
+                link.textContent = page.text;
+                listItem.appendChild(link);
+                productLinksList.appendChild(listItem);
+            });
+        }
     </script>
-    <!-- Test comment for VS Code task -->
 </body>
 </html>
