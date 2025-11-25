@@ -179,7 +179,7 @@
                     </div>
                 </div>
                 <!-- Google Sheets Logo Link -->
-                <a href="https://docs.google.com/spreadsheets/d/1CDec57RIPeLYhuAYjQWExZqfJeKqGemyftLmSaFMdCM/edit#gid=1934255395" target="_blank" title="Open Google Sheet">
+                <a href="https://docs.google.com/spreadsheets/d/1CDec57RIPeLYhuAYjQWExZqfJeKqGemyftLmSaFMdCM/edit#gid=818900529" target="_blank" title="Open Google Sheet">
                     <img src="https://upload.wikimedia.org/wikipedia/commons/3/30/Google_Sheets_logo_%282014-2020%29.svg" alt="Google Sheets Logo" style="height: 28px; vertical-align: middle;">
                 </a>
                 <!-- Clear Filters Icon Button -->
@@ -244,7 +244,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
         import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
         import { getFirestore, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-functions.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
@@ -259,7 +258,6 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const functions = getFunctions(app);
 
         Vue.createApp({
             template: '#admin-template',

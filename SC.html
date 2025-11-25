@@ -4,6 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dynamic Order Form</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
+            authDomain: "amiapp-e1d48.firebaseapp.com",
+            projectId: "amiapp-e1d48",
+            storageBucket: "amiapp-e1d48.appspot.com",
+            messagingSenderId: "709156310854",
+            appId: "1:709156310854:web:464a879038815ede871f47",
+            measurementId: "G-TKSX1GEVSS"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+    </script>
     <!-- A simple, clean CSS framework for styling -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
     <style>
@@ -213,8 +236,6 @@
 
     <!-- 1. Include Vue.js library -->
     <script src="https://unpkg.com/vue@3"></script>
-    <!-- 2. Include PapaParse library to easily parse CSV data -->
-    <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
     
     <!-- 
       TEMPLATE DEFINITION 
@@ -229,6 +250,7 @@
             <button @click="activeTab = 'person'" :class="{ active: activeTab === 'person' }">Order Details</button>
             <button @click="activeTab = 'table'" :class="{ active: activeTab === 'table' }">Item List</button>
             <button @click="activeTab = 'summary'" :class="{ active: activeTab === 'summary' }">Summary</button>
+            <button v-if="isLoggedIn" @click="activeTab = 'my-builds'" :class="{ active: activeTab === 'my-builds' }">My Builds</button>
             <button @click="activeTab = 'settings'" :class="['settings-button', { active: activeTab === 'settings' }]" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311a1.464 1.464 0 0 1-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c-1.4-.413-1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z"/></svg></button>
         </div>
 
@@ -296,7 +318,7 @@
                                 <button @click.prevent="saveConfiguration" type="button" class="clear-button">
                                     Save
                                 </button>
-                                <button @click.prevent="triggerFileLoad" type="button" class="clear-button">
+                                <button @click.prevent="loadConfiguration" type="button" class="clear-button">
                                     Load
                                 </button>
                                 <button @click.prevent="submitConfiguration" type="button" class="clear-button submit-button" :class="{ 'invalid-submit': isFormInvalid }">
@@ -313,7 +335,6 @@
                         </div>
                     </div>
                 </div>
-                <input type="file" ref="fileLoader" @change="handleFileLoad" style="display: none" accept=".json">
 
                 <!-- BOTTOM (SCROLLABLE) SECTION -->
                 <div v-if="selectedBase" class="bottom-section">
@@ -474,6 +495,36 @@
             <p v-else>No items have been configured yet.</p>
         </div>
 
+        <div v-if="isLoggedIn" v-show="activeTab === 'my-builds'">
+            <h2>My Saved Builds</h2>
+            <div v-if="savedBuilds.length > 0" class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Product</th>
+                            <th>Last Saved</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="build in savedBuilds" :key="build.id">
+                            <td>
+                                <a href="#" @click.prevent="promptAndRenameBuild(build)">{{ build.configurationName }}</a>
+                            </td>
+                            <td>{{ build.productName }}</td>
+                            <td>{{ new Date(build.updatedAt.seconds * 1000).toLocaleString() }}</td>
+                            <td>
+                                <button @click="loadSavedConfiguration(build)" class="clear-button">Load</button>
+                                <button @click="deleteSavedConfiguration(build.id)" class="clear-button" style="color: red;">Delete</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p v-else>You have no saved builds for this product.</p>
+        </div>
+
         <div v-show="activeTab === 'settings'">
             <h2>Settings</h2>
             
@@ -569,8 +620,10 @@
                     isPriceColumnDropdownOpen: false,
                     dragData: {
                         draggedIndex: null,
-                        draggedOverIndex: null
-                    }
+                        draggedOverIndex: null,
+                    },
+                    isLoggedIn: false,
+                    savedBuilds: [],
                 };
             },
             
@@ -758,33 +811,28 @@
                         default: return '';
                     }
                 },
-                async fetchCsvData() {
+                async fetchProductData() {
                     this.isLoading = true;
                     this.error = null;
                     try {
-                        const response = await fetch('SCPD.csv');
-                        if (!response.ok) {
-                            throw new Error(`Network response was not ok: ${response.statusText}`);
-                        }
-                        const csvText = await response.text();
-                        Papa.parse(csvText, {
-                            header: true,
-                            skipEmptyLines: true,
-                            complete: (results) => {
-                                if (results.errors.length > 0) {
-                                    console.error("CSV Parsing Errors:", results.errors);
-                                    throw new Error(`CSV Parsing Error: ${results.errors[0].message}`);
-                                }
-                                this.tableHeaders = results.meta.fields;
-                                this.tableData = results.data;
-                                // Set default visible columns
-                                this.selectedTableHeaders = ['ID', 'ITEM', 'DESCRIPTION', 'MSRP 26'];
+                        const docRef = db.collection("product_data").doc("sc");
+                        const doc = await docRef.get();
 
-                                this.isLoading = false;
+                        if (doc.exists) {
+                            const productData = doc.data().items;
+                            if (productData && productData.length > 0) {
+                                this.tableHeaders = Object.keys(productData[0]);
+                                this.tableData = productData;
+                                this.selectedTableHeaders = ['ID', 'ITEM', 'DESCRIPTION', 'MSRP 26'];
+                            } else {
+                                throw new Error("Product data is empty.");
                             }
-                        });
+                        } else {
+                            throw new Error("No product data found for 'sc' in the database.");
+                        }
+                        this.isLoading = false;
                     } catch (error) {
-                        this.error = `Failed to load CSV data. Details: ${error.message}`;
+                        this.error = `Failed to load product data. Details: ${error.message}`;
                         this.isLoading = false;
                     }
                 },
@@ -793,43 +841,38 @@
                     this.formSelections = {};
                     this.selectFrameColorDefaults = false;
                 },
-                saveConfiguration() {
-                    const configData = {
-                        selectedBaseId: this.selectedBaseId,
-                        formSelections: this.formSelections,
-                        isSpecialOrder: this.isSpecialOrder
-                    };
-                    const jsonString = JSON.stringify(configData, null, 2);
-                    const blob = new Blob([jsonString], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = 'sc-config.json';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                },
-                triggerFileLoad() {
-                    this.$refs.fileLoader.click();
-                },
-                handleFileLoad(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
+                async saveConfiguration() {
+                    const user = firebase.auth().currentUser;
+                    if (!user) {
+                        alert("Please log in to save your configuration.");
+                        window.location.href = `login.html?redirect=${window.location.pathname.split('/').pop()}`;
+                        return;
+                    }
 
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            const config = JSON.parse(e.target.result);
-                            this.selectedBaseId = config.selectedBaseId || '';
-                            this.formSelections = config.formSelections || {};
-                            this.isSpecialOrder = config.isSpecialOrder || false;
-                        } catch (err) {
-                            alert('Error: Could not load invalid configuration file.');
-                        }
+                    const buildName = prompt("Please enter a name for this build:", "My Shower Commode Build") || `SC Build ${new Date().toLocaleString()}`;
+                    if (!buildName) return;
+
+                    const configToSave = {
+                        ownerId: user.uid,
+                        productName: "Shower Commode",
+                        configurationName: buildName,
+                        configData: {
+                            selectedBaseId: this.selectedBaseId,
+                            formSelections: this.formSelections,
+                            isSpecialOrder: this.isSpecialOrder
+                        },
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     };
-                    reader.readAsText(file);
-                    event.target.value = ''; // Reset file input
+
+                    try {
+                        await db.collection("configurations").add(configToSave);
+                        alert(`Configuration "${buildName}" saved successfully!`);
+                        this.fetchSavedBuilds();
+                    } catch (error) {
+                        console.error("Error saving configuration: ", error);
+                        alert("There was an error saving your configuration.");
+                    }
                 },
                 toggleColumnDropdown() {
                     this.isColumnDropdownOpen = !this.isColumnDropdownOpen;
@@ -917,18 +960,58 @@
                     if (header === 'Off Unit') return control.offUnitPrice;
                     return 0;
                 },
-                onDrop(dropIndex, event) {
-                    event.target.classList.remove('drag-over');
-                    const draggedIndex = this.dragData.draggedIndex;
-
-                    if (draggedIndex === null || draggedIndex === dropIndex) {
-                        return; // No change if dropped on itself or if drag failed
+                loadConfiguration() {
+                    const user = firebase.auth().currentUser;
+                    if (!user) {
+                        alert("Please log in to load a configuration.");
+                        window.location.href = `login.html?redirect=${window.location.pathname.split('/').pop()}`;
+                        return;
                     }
+                    this.activeTab = 'my-builds';
+                },
+                async fetchSavedBuilds() {
+                    const user = firebase.auth().currentUser;
+                    if (!user) return;
 
-                    // Reorder the array
-                    const itemToMove = this.selectedPriceHeaders.splice(draggedIndex, 1)[0];
-                    this.selectedPriceHeaders.splice(dropIndex, 0, itemToMove);
-                    this.dragData.draggedIndex = null; // Reset
+                    try {
+                        const snapshot = await db.collection("configurations")
+                            .where("ownerId", "==", user.uid)
+                            .where("productName", "==", "Shower Commode")
+                            .orderBy("updatedAt", "desc")
+                            .get();
+                        
+                        this.savedBuilds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    } catch (error) {
+                        console.error("Error fetching saved builds: ", error);
+                        alert("Could not fetch your saved builds.");
+                    }
+                },
+                loadSavedConfiguration(build) {
+                    if (!build || !build.configData) return;
+                    this.selectedBaseId = build.configData.selectedBaseId || '';
+                    this.$nextTick(() => {
+                        this.formSelections = build.configData.formSelections || {};
+                        this.isSpecialOrder = build.configData.isSpecialOrder || false;
+                    });
+                    alert(`Configuration "${build.configurationName}" loaded.`);
+                    this.activeTab = 'configuration';
+                },
+                async deleteSavedConfiguration(docId) {
+                    if (!confirm("Are you sure you want to delete this build? This cannot be undone.")) return;
+                    try {
+                        await db.collection("configurations").doc(docId).delete();
+                        alert("Configuration deleted.");
+                        this.fetchSavedBuilds();
+                    } catch (error) {
+                        console.error("Error deleting configuration: ", error);
+                    }
+                },
+                async promptAndRenameBuild(build) {
+                    const newName = prompt("Enter a new name for this build:", build.configurationName);
+                    if (newName && newName !== build.configurationName) {
+                        await db.collection("configurations").doc(build.id).update({ configurationName: newName, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        this.fetchSavedBuilds();
+                    }
                 },
             },
             
@@ -948,6 +1031,11 @@
                         document.addEventListener('click', this.handlePriceClickOutside);
                     } else {
                         document.removeEventListener('click', this.handlePriceClickOutside);
+                    }
+                },
+                activeTab(newTab) {
+                    if (newTab === 'my-builds') {
+                        this.fetchSavedBuilds();
                     }
                 },
                 formSelections: {
@@ -1000,7 +1088,14 @@
                         this.isPriceColumnDropdownOpen = false;
                     }
                 };
-                this.fetchCsvData();
+                this.fetchProductData();
+
+                firebase.auth().onAuthStateChanged(user => {
+                    this.isLoggedIn = !!user;
+                    if (this.isLoggedIn) {
+                        this.fetchSavedBuilds();
+                    }
+                });
             },
         }).mount('#order-form-container');
     </script>

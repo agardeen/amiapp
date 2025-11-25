@@ -224,8 +224,6 @@
 
     <!-- 1. Include Vue.js library -->
     <script src="https://unpkg.com/vue@3"></script>
-    <!-- 2. Include PapaParse library to easily parse CSV data -->
-    <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
     
     <!-- 
       TEMPLATE DEFINITION 
@@ -314,7 +312,6 @@
                         </div>
                     </div>
                 </div>
-                <input type="file" ref="fileLoader" @change="handleFileLoad" style="display: none" accept=".json">
 
                 <!-- BOTTOM (SCROLLABLE) SECTION -->
                 <div class="bottom-section">
@@ -858,29 +855,6 @@
                         console.error("Error saving configuration: ", error);
                         alert("There was an error saving your configuration. Please try again.");
                     }
-                },
-                triggerFileLoad() {
-                    // This function is now obsolete with Firestore, but we keep it to avoid errors if called.
-                    // The "Load" button now has different functionality.
-                    alert("To load a saved build, please log in and use the 'My Builds' tab.");
-                },
-                handleFileLoad(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
-
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            const config = JSON.parse(e.target.result);
-                            this.selectedBaseId = config.selectedBaseId || '';
-                            this.formSelections = config.formSelections || {};
-                            this.isSpecialOrder = config.isSpecialOrder || false;
-                        } catch (err) {
-                            alert('Error: Could not load invalid configuration file.');
-                        }
-                    };
-                    reader.readAsText(file);
-                    event.target.value = ''; // Reset file input
                 },
                 toggleColumnDropdown() {
                     this.isColumnDropdownOpen = !this.isColumnDropdownOpen;
