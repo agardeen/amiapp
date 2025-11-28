@@ -78,6 +78,11 @@
         const authButton = document.getElementById('auth-button');
         const adminLinkContainer = document.getElementById('admin-link-container');
 
+        // New container for user-specific links
+        const userLinksContainer = document.createElement('div');
+        userLinksContainer.style.cssText = "position: absolute; top: 4rem; left: 1rem;";
+        document.body.insertBefore(userLinksContainer, document.body.firstChild);
+
         // Listen for auth state changes
         auth.onAuthStateChanged(async user => {
             adminLinkContainer.innerHTML = ''; // Clear admin link on auth change
@@ -85,6 +90,9 @@
                 // User is logged in
                 authButton.textContent = 'Logout';
                 authButton.onclick = () => auth.signOut();
+
+                // Show the "My Builds" link for any logged-in user
+                userLinksContainer.innerHTML = `<a href="my-builds.html">My Saved Builds</a>`;
 
                 // Check if user is an admin
                 try {
@@ -101,6 +109,8 @@
                             <a href="admin-sc.html" style="display: block; margin-bottom: 0.5rem;">Edit SC Data</a>
                             <a href="admin-zing1.html" style="display: block; margin-bottom: 0.5rem;">Edit Zing1 Data</a>
                             <a href="admin-zing2.html" style="display: block; margin-bottom: 0.5rem;">Edit Zing2 Data</a>
+                            <a href="admin-users.html" style="display: block; margin-top: 0.5rem; font-weight: bold;">Manage Users</a>
+                            <a href="admin-companies.html" style="display: block; margin-top: 0.5rem; font-weight: bold;">Manage Companies</a>
                         `;
                     }
                 } catch (err) {
@@ -111,6 +121,7 @@
                 // User is not logged in
                 authButton.textContent = 'Login';
                 authButton.onclick = () => window.location.href = 'login.html';
+                userLinksContainer.innerHTML = ''; // Clear user links on logout
             }
         });
 
@@ -118,13 +129,27 @@
         buildProductLinks();
 
         function buildProductLinks() {
+            // Links to every HTML file in the project (excluding this index page)
             const pages = [
-                { href: 'Eof.html', text: 'Evolv' },
-                { href: 'SC.html', text: 'Shower Commode (Multi-Price)' },
-                { href: 'SCof.html', text: 'Shower Commode (MSRP 25)' },
-                { href: 'SCof26.html', text: 'Shower Commode (MSRP 26)' },
-                { href: 'z1of.html', text: 'Zing Size 1' },
-                { href: 'z2of.html', text: 'Zing Size 2' }
+                { href: 'z2of.html', text: 'z2of.html' },
+                { href: 'z1of.html', text: 'z1of.html' },
+                { href: 'SCof26.html', text: 'SCof26.html' },
+                { href: 'Eof.html', text: 'Eof.html' },
+                { href: 'SCof.html', text: 'SCof.html' },
+                { href: 'admin-zing1.html', text: 'admin-zing1.html' },
+                { href: 'BMconfig.html', text: 'BMconfig.html' },
+                { href: 'BM.html', text: 'BM.html' },
+                { href: 'new-file.html', text: 'new-file.html' },
+                { href: 'admin-zingp.html', text: 'admin-zingp.html' },
+                { href: 'admin-sc.html', text: 'admin-sc.html' },
+                { href: 'admin-evolv.html', text: 'admin-evolv.html' },
+                { href: 'admin-strapstand.html', text: 'admin-strapstand.html' },
+                { href: 'admin-bantamsx.html', text: 'admin-bantamsx.html' },
+                { href: 'admin-zing2.html', text: 'admin-zing2.html' },
+                { href: 'admin-glider.html', text: 'admin-glider.html' },
+                { href: 'admin-bantamm.html', text: 'admin-bantamm.html' },
+                { href: 'login.html', text: 'login.html' },
+                { href: 'SC.html', text: 'SC.html' }
             ];
             const productLinksList = document.getElementById('product-links');
             productLinksList.innerHTML = ''; // Clear existing links

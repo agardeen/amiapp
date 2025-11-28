@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Manage Companies</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        #admin-container { max-width: 95%; margin: 2rem auto; }
+        .controls { margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; }
+        .status { font-style: italic; }
+        .controls button { padding: 4px 12px; font-size: 0.8rem; margin: 0; }
+        .table-container { overflow: auto; max-height: 80vh; border-top: 1px solid #ddd; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 6px 10px; border: 1px solid #ddd; text-align: left; font-size: 0.9rem; }
+        thead th { background-color: #f2f2f2; position: sticky; top: 0; z-index: 10; }
+        td input { width: 100%; box-sizing: border-box; border: 1px solid transparent; background: transparent; padding: 4px; font-size: 0.9rem; }
+        td input:focus { border: 1px solid blue; background: white; }
+        .access-denied, .loading, .error { text-align: center; padding: 4rem; color: red; }
+        #admin-container h1 { font-size: 1.5rem; margin-bottom: 1.2rem; }
+        .dirty-row { background-color: #fff5e6; }
+        .add-company-form { background-color: #f2f9f2; padding: 1rem; border: 1px solid #cde2cd; border-radius: 5px; margin-bottom: 1.5rem; }
+        .add-company-form h3 { margin-top: 0; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+    </style>
+</head>
+<body>
+
+    <div id="admin-container"></div>
+
+    <script src="https://unpkg.com/vue@3"></script>
+    <script type="text/x-template" id="admin-template">
+        <div v-if="!isAuthorized" class="access-denied">
+            <h1>Access Denied</h1>
+            <p>You do not have permission to view this page. <a href="index.html">Return to homepage</a>.</p>
+        </div>
+        <div v-else>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <a href="index.html" title="Home" style="color: var(--text-main);">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+                </a>
+                <h1>Manage Companies</h1>
+            </div>
+
+            <!-- Add New Company Form -->
+            <div class="add-company-form">
+                <h3>Add New Company</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="new-name">Company Name</label>
+                        <input type="text" id="new-name" v-model="newCompany.name" placeholder="e.g., ABC Company">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-account">Account #</label>
+                        <input type="text" id="new-account" v-model="newCompany.accountNumber" placeholder="e.g., C-1052">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-netsuite-id">NetSuite Customer ID</label>
+                        <input type="text" id="new-netsuite-id" v-model="newCompany.externalIds.netsuiteCustomerId" placeholder="e.g., ns_customer_456">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-monday-id">Monday.com Account ID</label>
+                        <input type="text" id="new-monday-id" v-model="newCompany.externalIds.mondayAccountId" placeholder="e.g., monday_acct_789">
+                    </div>
+                </div>
+                <button @click="addCompany" :disabled="!newCompany.name" style="margin-top: 1rem;">Add Company</button>
+            </div>
+
+            <div class="controls">
+                <button @click="saveChanges" :disabled="Object.keys(dirtyCompanies).length === 0 || isLoading">Save Changes</button>
+                <button @click="discardChanges" :disabled="Object.keys(dirtyCompanies).length === 0 || isLoading">Discard Changes</button>
+                <p v-if="Object.keys(dirtyCompanies).length > 0" class="status" style="margin-left: auto;">
+                    You have unsaved changes in {{ Object.keys(dirtyCompanies).length }} company(s).
+                </p>
+            </div>
+
+            <div v-if="isLoading" class="loading">Loading company data...</div>
+            <div v-if="error" class="error">{{ error }}</div>
+
+            <div v-if="!isLoading && !error" class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Company Name</th>
+                            <th>Account #</th>
+                            <th>NetSuite ID</th>
+                            <th>Monday.com ID</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="company in companies" :key="company.id" :class="{ 'dirty-row': dirtyCompanies[company.id] }">
+                            <td><input type="text" v-model="company.name" @input="markAsDirty(company.id)"></td>
+                            <td><input type="text" v-model="company.accountNumber" @input="markAsDirty(company.id)"></td>
+                            <td><input type="text" v-model="company.externalIds.netsuiteCustomerId" @input="markAsDirty(company.id)"></td>
+                            <td><input type="text" v-model="company.externalIds.mondayAccountId" @input="markAsDirty(company.id)"></td>
+                            <td><button @click="deleteCompany(company.id)" style="color: red; padding: 2px 6px;">Delete</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { getFirestore, collection, getDocs, doc, getDoc, writeBatch, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
+            authDomain: "amiapp-e1d48.firebaseapp.com",
+            projectId: "amiapp-e1d48",
+            storageBucket: "amiapp-e1d48.appspot.com",
+            messagingSenderId: "709156310854",
+            appId: "1:709156310854:web:464a879038815ede871f47",
+            measurementId: "G-TKSX1GEVSS"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        Vue.createApp({
+            template: '#admin-template',
+            data() {
+                return {
+                    isAuthorized: false,
+                    isLoading: true,
+                    error: null,
+                    companies: [],
+                    originalCompanies: {},
+                    dirtyCompanies: {},
+                    newCompany: {
+                        name: '',
+                        accountNumber: '',
+                        externalIds: {
+                            netsuiteCustomerId: '',
+                            mondayAccountId: ''
+                        }
+                    }
+                };
+            },
+            methods: {
+                async checkAuthorization() {
+                    const auth = getAuth();
+                    onAuthStateChanged(auth, async (user) => {
+                        if (user) {
+                            const userDoc = await getDoc(doc(db, 'users', user.uid));
+                            if (userDoc.exists() && userDoc.data().role === 'Admin1') {
+                                this.isAuthorized = true;
+                                this.fetchCompanies();
+                            } else {
+                                this.isAuthorized = false;
+                                this.isLoading = false;
+                                this.error = "You do not have sufficient permissions.";
+                            }
+                        } else {
+                            window.location.href = `login.html?redirect=admin-companies.html`;
+                        }
+                    });
+                },
+                async fetchCompanies() {
+                    this.isLoading = true;
+                    this.error = null;
+                    try {
+                        const querySnapshot = await getDocs(collection(db, "companies"));
+                        const companiesData = querySnapshot.docs.map(doc => ({
+                            id: doc.id,
+                            name: doc.data().name || '',
+                            accountNumber: doc.data().accountNumber || '',
+                            externalIds: doc.data().externalIds || { netsuiteCustomerId: '', mondayAccountId: '' }
+                        }));
+                        this.companies = companiesData;
+                        this.originalCompanies = JSON.parse(JSON.stringify(companiesData.reduce((acc, comp) => {
+                            acc[comp.id] = comp;
+                            return acc;
+                        }, {})));
+                    } catch (err) {
+                        this.error = `Error fetching company data: ${err.message}`;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                markAsDirty(id) {
+                    this.dirtyCompanies[id] = true;
+                },
+                discardChanges() {
+                    if (!confirm("Are you sure you want to discard all changes?")) return;
+                    for (const id in this.dirtyCompanies) {
+                        const original = this.originalCompanies[id];
+                        if (original) {
+                            const index = this.companies.findIndex(c => c.id === id);
+                            if (index !== -1) {
+                                this.companies[index] = JSON.parse(JSON.stringify(original));
+                            }
+                        }
+                    }
+                    this.dirtyCompanies = {};
+                },
+                async saveChanges() {
+                    const dirtyIds = Object.keys(this.dirtyCompanies);
+                    if (dirtyIds.length === 0) return;
+                    if (!confirm(`Save changes for ${dirtyIds.length} company(s)?`)) return;
+
+                    this.isLoading = true;
+                    const batch = writeBatch(db);
+                    for (const id of dirtyIds) {
+                        const companyToSave = this.companies.find(c => c.id === id);
+                        if (companyToSave) {
+                            const { id: companyId, ...dataToSave } = companyToSave;
+                            batch.update(doc(db, "companies", companyId), dataToSave);
+                        }
+                    }
+                    try {
+                        await batch.commit();
+                        this.dirtyCompanies = {};
+                        alert("Changes saved successfully!");
+                        await this.fetchCompanies(); // Refresh data to get clean state
+                    } catch (err) {
+                        this.error = `Error saving changes: ${err.message}`;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                async addCompany() {
+                    if (!this.newCompany.name.trim()) {
+                        alert("Company Name is required.");
+                        return;
+                    }
+                    this.isLoading = true;
+                    try {
+                        await addDoc(collection(db, "companies"), this.newCompany);
+                        alert("Company added successfully!");
+                        // Reset form
+                        this.newCompany = { name: '', accountNumber: '', externalIds: { netsuiteCustomerId: '', mondayAccountId: '' } };
+                        await this.fetchCompanies(); // Refresh the list
+                    } catch (err) {
+                        this.error = `Error adding company: ${err.message}`;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                async deleteCompany(id) {
+                    const companyName = this.companies.find(c => c.id === id)?.name || 'this company';
+                    if (!confirm(`Are you sure you want to delete "${companyName}"? This cannot be undone.`)) return;
+
+                    this.isLoading = true;
+                    try {
+                        await deleteDoc(doc(db, "companies", id));
+                        alert("Company deleted successfully.");
+                        await this.fetchCompanies(); // Refresh the list
+                    } catch (err) {
+                        this.error = `Error deleting company: ${err.message}`;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                }
+            },
+            created() {
+                this.checkAuthorization();
+            }
+        }).mount('#admin-container');
+    </script>
+
+</body>
+</html>

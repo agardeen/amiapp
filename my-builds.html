@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Saved Builds</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        body { font-family: sans-serif; }
+        #builds-container { max-width: 900px; margin: 2rem auto; }
+        .table-container { overflow-x: auto; }
+        table { width: 100%; }
+        .filter-controls { margin-bottom: 1rem; }
+        th, td { padding: 8px 12px; }
+        .actions a, .actions button { margin-right: 8px; }
+        .clear-button { padding: 2px 6px; font-size: 0.8rem; }
+        .loading, .error, .no-builds { text-align: center; padding: 3rem; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <div id="builds-container"></div>
+
+    <script src="https://unpkg.com/vue@3"></script>
+    <script type="text/x-template" id="builds-template">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <a href="index.html" title="Home" style="color: var(--text-main);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+            </a>
+            <h1>My Saved Builds</h1>
+        </div>
+
+        <div v-if="isLoading" class="loading">Loading your builds...</div>
+        <div v-else-if="error" class="error">{{ error }}</div>
+        <div v-else-if="savedBuilds.length === 0" class="no-builds">
+            <p>You have not saved any configurations yet.</p>
+            <a href="index.html">Start Configuring</a>
+        </div>
+        <div v-else>
+            <div class="filter-controls">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="product-filter">Filter by Product</label>
+                    <select id="product-filter" v-model="selectedProductFilter">
+                        <option value="">All Products</option>
+                        <option v-for="product in productFilterOptions" :key="product" :value="product">{{ product }}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Configuration Name</th>
+                            <th>Product</th>
+                            <th>Last Saved</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="build in filteredBuilds" :key="build.id">
+                            <td>{{ build.configurationName }}</td>
+                            <td>{{ build.productName }}</td>
+                            <td>{{ new Date(build.updatedAt.seconds * 1000).toLocaleString() }}</td>
+                            <td class="actions">
+                                <a :href="getLinkForBuild(build)" class="clear-button" role="button">Load</a>
+                                <button @click="deleteSavedConfiguration(build.id)" class="clear-button" style="color: red;">Delete</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </script>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
+            authDomain: "amiapp-e1d48.firebaseapp.com",
+            projectId: "amiapp-e1d48",
+            storageBucket: "amiapp-e1d48.appspot.com",
+            messagingSenderId: "709156310854",
+            appId: "1:709156310854:web:464a879038815ede871f47",
+            measurementId: "G-TKSX1GEVSS"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        Vue.createApp({
+            template: '#builds-template',
+            data() {
+                return {
+                    isLoading: true,
+                    error: null,
+                    savedBuilds: [],
+                    selectedProductFilter: '', // For the new dropdown
+                    productPageMap: {
+                        'Shower Commode': 'sc.html',
+                        'Zing Size 1': 'z1of.html',
+                        'Zing Size 2': 'z2of.html'
+                        // Add other product mappings here as you refactor them
+                    }
+                };
+            },
+            computed: {
+                productFilterOptions() {
+                    if (!this.savedBuilds || this.savedBuilds.length === 0) return [];
+                    // Create a unique, sorted list of product names from the saved builds
+                    const productNames = this.savedBuilds.map(build => build.productName);
+                    return [...new Set(productNames)].sort();
+                },
+                filteredBuilds() {
+                    if (!this.selectedProductFilter) {
+                        return this.savedBuilds; // If no filter is selected, show all builds
+                    }
+                    return this.savedBuilds.filter(build => build.productName === this.selectedProductFilter);
+                }
+            },
+            methods: {
+                async fetchSavedBuilds(user) {
+                    this.isLoading = true;
+                    this.error = null;
+                    try {
+                        // This query gets ALL builds for the user, sorted by most recent.
+                        // It does NOT filter by productName.
+                        const snapshot = await db.collection("configurations")
+                            .where("ownerId", "==", user.uid)
+                            .orderBy("updatedAt", "desc") // Use updatedAt to sort by most recent activity
+                            .get();
+                        this.savedBuilds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    } catch (error) {
+                        console.error("Error fetching saved builds:", error);
+                        this.error = "Could not fetch your builds. This may be due to a missing database index. Please contact support.";
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                getLinkForBuild(build) {
+                    const page = this.productPageMap[build.productName];
+                    if (!page) {
+                        console.warn(`No page mapping found for product: ${build.productName}`);
+                        return '#'; // Return a dead link if no page is found
+                    }
+                    // We will need to update the configurator pages to handle this parameter.
+                    return `${page}?buildId=${build.id}`;
+                },
+                async deleteSavedConfiguration(docId) {
+                    if (!confirm("Are you sure you want to permanently delete this build?")) return;
+                    try {
+                        await db.collection("configurations").doc(docId).delete();
+                        // Refresh the list by filtering out the deleted build
+                        this.savedBuilds = this.savedBuilds.filter(build => build.id !== docId);
+                        alert("Configuration deleted.");
+                    } catch (error) {
+                        console.error("Error deleting configuration:", error);
+                        alert("There was an error deleting the configuration.");
+                    }
+                }
+            },
+            created() {
+                firebase.auth().onAuthStateChanged(user => {
+                    if (user) {
+                        this.fetchSavedBuilds(user);
+                    } else {
+                        // If no user is logged in, redirect to the login page.
+                        window.location.href = 'login.html?redirect=my-builds.html';
+                    }
+                });
+            }
+        }).mount('#builds-container');
+    </script>
+
+</body>
+</html>
