@@ -4,8 +4,6 @@ export function initializeConfigurator(config) {
         firestoreDocId,
         priceFields,
         baseSection = 'Base',
-        specialControlIds = {}, // e.g., { extraTall: 'PNG50377' }
-        mergedSections = {},   // e.g., { 'Front Frame': ['Shadow Tray Frame', 'Column Frame', ...] }
     } = config;
 
     Vue.createApp({
@@ -20,7 +18,6 @@ export function initializeConfigurator(config) {
                 selectedBaseId: '',
                 formSelections: {},
                 selectDefaults: false,
-                extraTallCheckbox: null, // Will hold the PNG50377 control object if it's visible
                 hoveredControlId: null,
                 isSpecialOrder: false,
                 selectedTableHeaders: [],
@@ -36,6 +33,16 @@ export function initializeConfigurator(config) {
                 currentUser: null,
                 currentUserDoc: null,
                 itemListBaseFilter: '',
+                user: {
+                    name: '',
+                    email: '',
+                    company: '',
+                    address: '',
+                    shippingAddress: '',
+                    phone: '',
+                    accountNumber: '',
+                    country: ''
+                },
                 orderTimestamp: null,
                 userIpAddress: null,
             };
@@ -45,8 +52,6 @@ export function initializeConfigurator(config) {
             priceField() { return priceFields[0] },
             baseProducts() {
                 if (this.isLoading) return [];
-                // Only include items from the baseSection that are actual selectable dropdown options.
-                // This now uses CntlGrp to identify base products, per the new rule.
                 return this.tableData.filter(p => p.CntlGrp === baseSection && (p.Control === 'DDR' || p.Control === 'DD'));
             },
             filteredTableData() {
@@ -79,26 +84,23 @@ export function initializeConfigurator(config) {
                     else if (value === true) selectedItem = this.tableData.find(p => p.ID === key);
                     if (selectedItem) items.push(selectedItem);
                 }
-                return items;
+                
+                // Sort the items in descending order based on the ID column.
+                // Using localeCompare ensures correct string sorting.
+                // Using { numeric: true } ensures natural sort order (e.g., E2 before E10).
+                return items.sort((a, b) => a.ID.localeCompare(b.ID, undefined, { numeric: true }));
             },
             totalPrice() {
-                return this.finalConfigurationItems.reduce((total, item) => total + (parseFloat(item[priceField]) || 0), 0);
+                return this.finalConfigurationItems.reduce((total, item) => total + (parseFloat(item[this.priceField]) || 0), 0);
             },
             isFormInvalid() {
+                // Simplified for now. You can add more complex validation logic here.
                 if (!this.selectedBaseId) return true;
-                for (const control of this.conditionalControls) {
-                    if (control.controlType === 'DDR' && !this.formSelections[control.id]) return true;
-                }
-                if (this.isPatternRequired && !this.formSelections['Pattern']) return true;
                 return false;
-            },
-            isPatternRequired() {
-                return this.finalConfigurationItems.some(item => item.DESCRIPTION.includes('Hygienic'));
             },
             priceColumnHeaders() {
                 if (!this.tableHeaders.length) return [];
                 const headersToExclude = ['id'];
-                // Ensure tableHeaders is an array before filtering
                 return (Array.isArray(this.tableHeaders) ? this.tableHeaders : []).filter(header => {
                     if (headersToExclude.includes(header.toLowerCase())) return false;
                     if (header.toLowerCase().includes('msrp')) return true;
@@ -109,50 +111,61 @@ export function initializeConfigurator(config) {
                 });
             },
             conditionalControls() {
+                // THIS IS THE CLEAN SLATE
+                // All logic to build your form controls will go here.
                 if (!this.selectedBase) {
                     return [];
                 }
 
+                // Rule 1: Filter data based on the selected Base product.
                 const baseCode = this.selectedBase.Base;
-                // Filter rows relevant to the selected base or global options
-                const relevantRows = this.tableData.filter(row =>
-                    (row.CntlGrp !== baseSection) && // Exclude other base items
-                    ((row.Base && row.Base.split(',').map(b => b.trim()).includes(baseCode)) || !row.Base) // Match base code or be global
-                );
+                const relevantRows = this.tableData.filter(row => {
+                    // Exclude other base items from the controls list.
+                    if (row.CntlGrp === baseSection) return false;
+                    // Keep rows that have a blank Base column (global options).
+                    if (!row.Base) return true;
+                    // Keep rows where the Base column includes the selected base's code.
+                    return row.Base.split(',').map(b => b.trim()).includes(baseCode);
+                });
 
-                // Helper to check if an item's requirements are met by current selections
+                // Rule: "Requires" - Helper function to check if an item's requirements are met.
                 const isRequirementMet = (row) => {
-                    if (!row.Requires) return true; // No requirements to meet
-                    
+                    // If the 'Requires' column is empty, the item is always considered valid.
+                    if (!row.Requires) return true;
+
+                    // Get a set of all currently selected ITEM values for efficient lookup.
                     const currentSelections = new Set(this.finalConfigurationItems.map(item => item.ITEM));
 
-                    // All requirements must be met (AND logic)
-                    return row.Requires.split(/[\s,]+/).every(req => req && currentSelections.has(req.trim()));
+                    // Check if at least ONE of the required items is in the current selections (OR logic).
+                    return row.Requires.split(',').map(req => req.trim()).some(req => currentSelections.has(req));
                 };
 
                 const controls = [];
                 const processedGroups = new Set();
 
-                // Process all controls in a single pass to maintain their natural order
+                // Process all controls in a single pass to maintain their natural order from the data table.
                 for (const row of relevantRows) {
-                    if (!row.CntlGrp) continue; // Each control must have a CntlGrp to be rendered
-                    
-                    // Use a composite key to allow a CntlGrp to have multiple control types (e.g., a DD and a CB)
-                    const groupKey = row.CntlGrp + '_' + (row.Control === 'DDR' || row.Control === 'DD' ? 'DropDown' : 'Checkbox');
-                    if (processedGroups.has(groupKey)) continue;
+                    // Ignore rows without a CntlGrp or rows that are just labels.
+                    if (!row.CntlGrp || row.Control === 'Label') continue;
 
-                    // Handle Dropdowns
-                    if (row.Control === 'DDR' || row.Control === 'DD') {
-                        const options = relevantRows.filter(o => o.CntlGrp === row.CntlGrp && (o.Control === 'DDR' || o.Control === 'DD') && isRequirementMet(o));
+                    // If we have already created a control for this group, skip to the next row.
+                    if (processedGroups.has(row.CntlGrp)) continue;
+
+                    // Handle Dropdowns (DDR, DD) and Radio Buttons (OB)
+                    if (row.Control === 'DDR' || row.Control === 'DD' || row.Control === 'OB') {
+                        // Find all rows with the same CntlGrp and apply the 'Requires' rule to each option.
+                        const options = relevantRows.filter(o => o.CntlGrp === row.CntlGrp && isRequirementMet(o));
                         if (options.length > 0) {
-                            controls.push({ id: row.CntlGrp, label: row.CntlGrp, controlType: row.Control, options: options, section: row.CntlGrp });
-                            processedGroups.add(groupKey);
+                            controls.push({ id: row.CntlGrp, label: row.CntlGrp, controlType: row.Control, options: options });
+                            processedGroups.add(row.CntlGrp);
                         }
-                    // Handle Checkboxes
+                    // Handle Checkboxes (CB, CBR) - one control per row.
                     } else if (row.Control === 'CB' || row.Control === 'CBR') {
+                        // A checkbox is only created if it meets the 'Requires' rule.
                         if (isRequirementMet(row)) {
-                            controls.push({ id: row.ID, label: row.ITEM ? `${row.ITEM} - ${row.DESCRIPTION}` : row.DESCRIPTION, controlType: row.Control, price: row.price, notes: row.Notes, link: row.Link, section: row.CntlGrp });
-                            processedGroups.add(groupKey);
+                            const label = row.ITEM ? `${row.ITEM} - ${row.DESCRIPTION}` : row.DESCRIPTION;
+                            controls.push({ id: row.ID, label: label, controlType: row.Control, price: row[this.priceField] });
+                            processedGroups.add(row.CntlGrp);
                         }
                     }
                 }
@@ -161,6 +174,23 @@ export function initializeConfigurator(config) {
             },
         },
         methods: {
+            async geocodeAddress(address) {
+                if (!address || address.trim() === '') return null;
+                try {
+                    const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
+                    const data = await response.json();
+                    if (data && data.length > 0) {
+                        return {
+                            lat: parseFloat(data[0].lat),
+                            lng: parseFloat(data[0].lon)
+                        };
+                    }
+                    return null;
+                } catch (error) {
+                    console.error("Geocoding error:", error);
+                    return null;
+                }
+            },
             getColumnClass(header) {
                 switch (header) {
                     case 'DESCRIPTION': return 'col-wide';
@@ -200,9 +230,12 @@ export function initializeConfigurator(config) {
                 }
             },
             clearConfiguration() {
-                // Reload the page to perform a hard reset of the form.
-                // This is the most reliable way to clear all state.
-                window.location.reload();
+                // Reset only the data related to the current build configuration.
+                // This preserves settings like selected price columns.
+                this.selectedBaseId = '';
+                this.formSelections = {};
+                this.selectDefaults = false;
+                // The watcher on conditionalControls will handle re-initializing required fields.
             },
             async saveConfiguration() {
                 const user = firebase.auth().currentUser;
@@ -211,48 +244,99 @@ export function initializeConfigurator(config) {
                     window.location.href = `login.html?redirect=${window.location.pathname.split('/').pop()}`;
                     return;
                 }
-
-                const orderDetails = {
-                    poNumber: document.getElementById('po-number')?.value || '',
-                    quoteNumber: document.getElementById('quote-number')?.value || '',
-                    accountNumber: document.getElementById('account-number')?.value || '',
-                    orderedBy: document.getElementById('ordered-by')?.value || '',
-                    supplierCompany: document.getElementById('supplier-company')?.value || '',
-                    supplierAddress: document.getElementById('supplier-address')?.value || '',
-                    supplierPhone: document.getElementById('supplier-phone')?.value || '',
-                    supplierEmail: document.getElementById('supplier-email')?.value || '',
-                    payerSource: document.getElementById('payer-source')?.value || '',
-                    atpName: document.getElementById('atp-name')?.value || '',
-                    shipToName: document.getElementById('ship-to-name')?.value || '',
-                    shipToAddress: document.getElementById('ship-to-address')?.value || '',
-                    shipToPhone: document.getElementById('ship-to-phone')?.value || '',
-                    tagFor: document.getElementById('tag-for')?.value || '',
-                };
-
-                const buildName = prompt(`Please enter a name for this build:`, `My ${productName} Build`) || `${productName} Build ${new Date().toLocaleString()}`;
-                if (!buildName) return;
-
-                const configToSave = {
-                    ownerId: user.uid,
-                    productName: productName,
-                    configurationName: buildName,
-                    companyId: this.currentUserDoc?.companyId || '',
-                    configData: {
-                        selectedBaseId: this.selectedBaseId,
-                        formSelections: this.formSelections,
-                        isSpecialOrder: this.isSpecialOrder,
-                        orderDetails: orderDetails
-                    },
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                };
-                try {
-                    await db.collection("configurations").add(configToSave);
+    
+            let buildName;
+            let isNameValid = false;
+            let existingBuild = null;
+    
+            while (!isNameValid) {
+                buildName = prompt(`Please enter a name for this build:`, `My ${productName} Build`);
+    
+                if (!buildName) return; // User cancelled the prompt.
+    
+                existingBuild = this.savedBuilds.find(b => b.configurationName === buildName);
+    
+                if (existingBuild) {
+                    const overwrite = confirm(`A build named "${buildName}" already exists. Do you want to overwrite it?`);
+                    if (overwrite) {
+                        isNameValid = true; // Proceed to overwrite.
+                    }
+                    // If user clicks "Cancel", the loop continues, prompting for a new name.
+                } else {
+                    isNameValid = true; // Name is unique, proceed to save.
+                }
+            }
+    
+            const orderDetails = {
+                poNumber: document.getElementById('po-number')?.value || '',
+                quoteNumber: document.getElementById('quote-number')?.value || '',
+                accountNumber: document.getElementById('account-number')?.value || '',
+                orderedBy: document.getElementById('ordered-by')?.value || '',
+                supplierCompany: document.getElementById('supplier-company')?.value || '',
+                supplierAddress: document.getElementById('supplier-address')?.value || '',
+                supplierPhone: document.getElementById('supplier-phone')?.value || '',
+                supplierEmail: document.getElementById('supplier-email')?.value || '',
+                payerSource: document.getElementById('payer-source')?.value || '',
+                atpName: document.getElementById('atp-name')?.value || '',
+                shipToName: document.getElementById('ship-to-name')?.value || '',
+                shipToAddress: document.getElementById('ship-to-address')?.value || '',
+                shipToPhone: document.getElementById('ship-to-phone')?.value || '',
+                tagFor: document.getElementById('tag-for')?.value || '',
+            };
+    
+            const configData = {
+                selectedBaseId: this.selectedBaseId,
+                formSelections: this.formSelections,
+                isSpecialOrder: this.isSpecialOrder,
+                orderDetails: orderDetails
+            };
+    
+            try {
+                if (existingBuild) {
+                    // Overwrite existing build
+                    const buildRef = db.collection("configurations").doc(existingBuild.id);
+                    await buildRef.update({ configData: configData, updatedAt: new Date() });
+                    alert(`Configuration "${buildName}" updated successfully!`);
+                } else {
+                    // Save as new build
+                    const newConfig = { ownerId: user.uid, productName: productName, configurationName: buildName, companyId: this.currentUserDoc?.companyId || '', configData: configData, createdAt: new Date(), updatedAt: new Date() };
+                    await db.collection("configurations").add(newConfig);
                     alert(`Configuration "${buildName}" saved successfully!`);
-                    this.fetchSavedBuilds();
+                }
+                this.fetchSavedBuilds();
+            } catch (error) {
+                console.error("Error saving configuration: ", error);
+                alert("There was an error saving your configuration.");
+            }
+            },
+            async saveUserDetails() {
+                if (!this.currentUser) {
+                    alert("You must be logged in to save your details.");
+                    return;
+                }
+
+                const sanitizedPhone = this.user.phone.replace(/[^\d\s-()+]/g, '');
+                const addressCoords = await this.geocodeAddress(this.user.address);
+                const shippingAddressCoords = await this.geocodeAddress(this.user.shippingAddress);
+
+                try {
+                    const userDocRef = db.collection('users').doc(this.currentUser.uid);
+                    await userDocRef.set({
+                        name: this.user.name,
+                        company: this.user.company,
+                        address: this.user.address,
+                        shippingAddress: this.user.shippingAddress,
+                        address_coords: addressCoords,
+                        shippingAddress_coords: shippingAddressCoords,
+                        phone: sanitizedPhone,
+                        accountNumber: this.user.accountNumber,
+                        country: this.user.country,
+                        email: this.user.email
+                    }, { merge: true });
+                    alert("Your details have been saved successfully!");
                 } catch (error) {
-                    console.error("Error saving configuration: ", error);
-                    alert("There was an error saving your configuration.");
+                    console.error("Error saving user details: ", error);
+                    alert("There was an error saving your details. Please try again.");
                 }
             },
             toggleColumnDropdown() {
@@ -269,11 +353,11 @@ export function initializeConfigurator(config) {
                 this.activeTab = 'summary';
             },
             isCheckboxDisabled(controlId) {
-                // Use configured special IDs for product-specific rules
-                if (specialControlIds.extraTallBase && controlId === specialControlIds.extraTall) {
-                    return this.selectedBaseId === specialControlIds.extraTallBase;
-                }
-                return false;
+                // Find the corresponding row in the raw data to check its control type.
+                const row = this.tableData.find(r => r.ID === controlId);
+                // Disable the checkbox if its control type is CBR (CheckBox Required).
+                if (row && row.Control === 'CBR') return true;
+                return false; // Otherwise, it is not disabled.
             },
             getHoveredItem(control) {
                 if (control.id === 'base-product') return this.selectedBase;
@@ -378,21 +462,18 @@ export function initializeConfigurator(config) {
                 this.dragData.draggedIndex = null;
             },
             getHeaderTotal(header) {
-                // Gracefully handle if this method is called on a page without multi-price support
                 if (!this.finalConfigurationItems) return 0;
                 return this.finalConfigurationItems.reduce((total, item) => total + (parseFloat(item[header]) || 0), 0);
             },
             getCheckboxPrice(control, header) {
-                // Gracefully handle if this method is called on a page without multi-price support
                 const item = this.tableData.find(p => p.ID === control.id);
                 return item ? (item[header] || 0) : 0;
             },
             shouldShowPrice(control) {
-                if (control.controlType === 'CB') {
-                    // This is for sc.html's multi-price display. It's safe for z1of.html.
+                if (control.controlType === 'CB' || control.controlType === 'CBR') {
                     return this.formSelections[control.id];
                 }
-                if (control.controlType === 'DDR' || control.controlType === 'DD') {
+                if (control.controlType === 'DDR' || control.controlType === 'DD' || control.controlType === 'OB') {
                     const selectedOpt = this.selectedOptions[control.id];
                     return !!selectedOpt;
                 }
@@ -401,14 +482,7 @@ export function initializeConfigurator(config) {
         },
         watch: {
             selectedBaseId(newBaseId) {
-                // Use configured special IDs for product-specific rules
-                if (specialControlIds.extraTall && specialControlIds.extraTallBase) {
-                    if (newBaseId === specialControlIds.extraTallBase) {
-                        this.formSelections[specialControlIds.extraTall] = true;
-                    } else {
-                        this.formSelections[specialControlIds.extraTall] = false;
-                    }
-                }
+                // You can add logic here that runs when the base product changes
             },
             isColumnDropdownOpen(isOpen) {
                 if (isOpen) document.addEventListener('click', this.handleClickOutside);
@@ -416,7 +490,6 @@ export function initializeConfigurator(config) {
             },
             isPriceColumnDropdownOpen(isOpen) {
                 if (isOpen) document.addEventListener('click', this.handlePriceClickOutside);
-                // The handler might not exist on simpler pages, so check before removing.
                 else if (this.handlePriceClickOutside) document.removeEventListener('click', this.handlePriceClickOutside);
             },
             activeTab(newTab) {
@@ -424,29 +497,64 @@ export function initializeConfigurator(config) {
             },
             formSelections: {
                 handler(newSelections) {
-                    // Placeholder for future generic, rule-based auto-selections
+                    // You can add logic here that reacts to any selection change
                 },
                 deep: true
             },
-            selectDefaults(isDefaultsSelected) {
-                if (isDefaultsSelected) {
-                    // Iterate through the entire tableData to find all possible default options,
-                    // regardless of whether they are currently visible. This decouples the default
-                    // logic from the conditional rendering logic.
-                    const baseCode = this.selectedBase.Base;
-                    const relevantRows = this.tableData.filter(row => (row.Base && row.Base.includes(baseCode)) || !row.Base);
- 
-                    for (const row of relevantRows) {
-                        if (!row.Notes || !row.Notes.includes('Default')) continue;
+            currentUserDoc(newDoc) {
+                // When user data is loaded, pre-populate the order details form.
+                if (newDoc) {
+                    this.user.name = newDoc.name || '';
+                    this.user.email = newDoc.email || '';
+                    this.user.company = newDoc.company || '';
+                    this.user.address = newDoc.address || '';
+                    this.user.shippingAddress = newDoc.shippingAddress || '';
+                    this.user.phone = newDoc.phone || '';
+                    this.user.accountNumber = newDoc.accountNumber || '';
+                    this.user.country = newDoc.country || '';
 
-                        if (row.Control === 'DDR' || row.Control === 'DD') {
-                            this.formSelections[row.CntlGrp] = row.ID;
-                        } else if (row.Control === 'CB') {
-                            // For checkboxes, set their individual selection.
-                            this.formSelections[row.ID] = true;
-                        }
+                    // Pre-fill from geolocation if needed
+                    if (!this.user.country || !this.user.phone) {
+                        fetch('https://ipapi.co/json/').then(res => res.json()).then(geoData => {
+                            if (!this.user.country) this.user.country = geoData.country_name;
+                            if (!this.user.phone) {
+                                let phoneCode = geoData.country_calling_code;
+                                this.user.phone = phoneCode ? (phoneCode.startsWith('+') ? `${phoneCode} ` : `+${phoneCode} `) : '+1 ';
+                            }
+                        }).catch(err => console.error('Could not fetch geolocation data:', err));
                     }
                 }
+            },
+            selectDefaults(isDefaultsSelected) {
+                if (!isDefaultsSelected) return;
+
+                const applyDefaults = () => {
+                    // Iterate through the controls that are currently visible on the screen.
+                    for (const control of this.conditionalControls) {
+                        // Handle Dropdowns and Radio Buttons
+                        if (control.controlType === 'DDR' || control.controlType === 'DD' || control.controlType === 'OB') {
+                            // Find the first default option within this control's visible options.
+                            const defaultOption = control.options.find(opt => opt.Notes && opt.Notes.includes('Default'));
+                            if (defaultOption) {
+                                this.formSelections[control.id] = defaultOption.ID;
+                            }
+                        // Handle Checkboxes
+                        } else if (control.controlType === 'CB' || control.controlType === 'CBR') {
+                            const row = this.tableData.find(r => r.ID === control.id);
+                            if (row && row.Notes && row.Notes.includes('Default')) {
+                                this.formSelections[control.id] = true;
+                            }
+                        }
+                    }
+                };
+
+                // First Pass: Apply all defaults that are currently visible.
+                applyDefaults();
+
+                // Second Pass: Wait for Vue to update the DOM, then run again to catch cascading defaults.
+                this.$nextTick(() => {
+                    applyDefaults();
+                });
             },
             conditionalControls(newControls) {
                 // When controls are added, ensure required dropdowns (DDR) have their
@@ -454,6 +562,10 @@ export function initializeConfigurator(config) {
                 for (const control of newControls) {
                     if (control.controlType === 'DDR' && !(control.id in this.formSelections)) {
                         this.formSelections[control.id] = '';
+                    }
+                    // If a CBR control is created, automatically check it.
+                    if (control.controlType === 'CBR') {
+                        this.formSelections[control.id] = true;
                     }
                 }
             }
@@ -465,7 +577,6 @@ export function initializeConfigurator(config) {
                 }
             };
             this.handlePriceClickOutside = (event) => {
-                // Check if the price column selector ref exists before using it.
                 if (this.$refs.priceColumnSelector && !this.$refs.priceColumnSelector.contains(event.target)) {
                     this.isPriceColumnDropdownOpen = false;
                 }

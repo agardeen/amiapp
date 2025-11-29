@@ -243,7 +243,12 @@
       By separating it, we make both the template and the logic easier to read.
     -->
     <script type="text/x-template" id="order-form-template">
-        <h2 style="text-align: center; margin-top: 4px; margin-bottom: 4px;">Shower Commode</h2>
+        <div style="display: flex; justify-content: center; align-items: center; position: relative; margin-top: 4px; margin-bottom: 4px;">
+            <a href="index.html" title="Home" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-main);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+            </a>
+            <h2 style="margin: 0;">Shower Commode</h2>
+        </div>
         <!-- Tab Navigation -->
         <div class="tab-nav">
             <button @click="activeTab = 'configuration'" :class="{ active: activeTab === 'configuration' }">Build</button>

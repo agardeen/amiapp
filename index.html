@@ -3,166 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Product Configurators</title>
-    <!-- A simple, clean CSS framework for styling -->
+    <title>AMI App Home</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = { apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk", authDomain: "amiapp-e1d48.firebaseapp.com", projectId: "amiapp-e1d48", storageBucket: "amiapp-e1d48.appspot.com", messagingSenderId: "709156310854", appId: "1:709156310854:web:464a879038815ede871f47", measurementId: "G-TKSX1GEVSS" };
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
     <style>
         body {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            min-height: 80vh;
-            margin: 0;
+            justify-content: center;
+            height: 100vh;
+            gap: 1.5rem;
         }
-        .container { 
-            max-width: 600px; 
-            margin: 2rem auto; 
-            padding: 2rem; 
-            border: 1px solid #ddd; 
-            border-radius: 8px; 
-            background-color: #f9f9f9; 
+        .navigation-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        select {
+            min-width: 250px;
             text-align: center;
         }
-        ul { list-style-type: none; padding: 0; }
-        li { margin: 1.5rem 0; }
-        .product-link { font-size: 1.25rem; text-decoration: none; }
-        .product-link:hover { color: #007bff; }
-        .logout-button {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
+        h1 {
+            margin-bottom: 2rem;
+        }
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .user-actions button {
+            margin: 0;
         }
     </style>
 </head>
 <body>
-    <div id="auth-container">
-        <!-- This button will be updated by JavaScript -->
-        <button id="auth-button" class="logout-button">Login</button>
-    </div>
-    <div id="admin-link-container" style="position: absolute; top: 4rem; right: 1rem;">
-        <!-- Admin link will be injected here -->
+
+    <h1>AMI Application Portal</h1>
+    
+    <div id="user-actions" class="user-actions">
+        <a id="my-builds-link" href="my-builds.html" style="display: none;">My Builds</a>
+        <a id="user-profile-link" href="user.html" style="display: none;">My Profile</a>
+        <button id="auth-button">Login</button>
     </div>
 
-    <div class="container">
-        <h2>Product Configurators</h2>
-        <p>Please select a product to begin configuration.</p>
-        <ul id="product-links">
-            <!-- Links will be dynamically inserted here by JavaScript -->
-        </ul>
+    <div class="navigation-group">
+        <label for="orderform-nav"><h3>Order Form Configurators</h3></label>
+        <select id="orderform-nav" onchange="if (this.value) window.location.href = this.value;">
+            <option value="">Select a Configurator...</option>
+            <!-- Options will be dynamically inserted here -->
+        </select>
     </div>
 
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <div class="navigation-group">
+        <label for="admin-nav"><h3>Admin Pages</h3></label>
+        <select id="admin-nav" onchange="if (this.value) window.location.href = this.value;">
+            <option value="">Select an Admin Page...</option>
+            <!-- Options will be dynamically inserted here -->
+        </select>
+    </div>
 
     <script>
-        // IMPORTANT: Paste your Firebase config object here
-        const firebaseConfig = {
-            apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
-            authDomain: "amiapp-e1d48.firebaseapp.com",
-            projectId: "amiapp-e1d48",
-            storageBucket: "amiapp-e1d48.appspot.com",
-            messagingSenderId: "709156310854",
-            appId: "1:709156310854:web:464a879038815ede871f47",
-            measurementId: "G-TKSX1GEVSS"
-        };
+        document.addEventListener('DOMContentLoaded', () => {
+            const authButton = document.getElementById('auth-button');
+            const myBuildsLink = document.getElementById('my-builds-link');
+            const userProfileLink = document.getElementById('user-profile-link');
+            const orderFormNav = document.getElementById('orderform-nav');
+            const adminNav = document.getElementById('admin-nav');
 
-        // Initialize Firebase
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-
-        const authButton = document.getElementById('auth-button');
-        const adminLinkContainer = document.getElementById('admin-link-container');
-
-        // New container for user-specific links
-        const userLinksContainer = document.createElement('div');
-        userLinksContainer.style.cssText = "position: absolute; top: 4rem; left: 1rem;";
-        document.body.insertBefore(userLinksContainer, document.body.firstChild);
-
-        // Listen for auth state changes
-        auth.onAuthStateChanged(async user => {
-            adminLinkContainer.innerHTML = ''; // Clear admin link on auth change
-            if (user) {
-                // User is logged in
-                authButton.textContent = 'Logout';
-                authButton.onclick = () => auth.signOut();
-
-                // Show the "My Builds" link for any logged-in user
-                userLinksContainer.innerHTML = `<a href="my-builds.html">My Saved Builds</a>`;
-
-                // Check if user is an admin
-                try {
-                    const userDoc = await db.collection('users').doc(user.uid).get();
-                    if (userDoc.exists && userDoc.data().role === 'Admin1') {
-                        adminLinkContainer.innerHTML = `
-                            <a href="admin-bantamsx.html" style="display: block; margin-bottom: 0.5rem;">Edit BantamSX Data</a>
-                            <a href="admin-bantamm.html" style="display: block; margin-bottom: 0.5rem;">Edit BantamM Data</a>
-                            <a href="admin-glider.html" style="display: block; margin-bottom: 0.5rem;">Edit Glider Data</a>
-                            <a href="admin-strapstand.html" style="display: block; margin-bottom: 0.5rem;">Edit StrapStand Data</a>
-                            <a href="admin-zingp.html" style="display: block; margin-bottom: 0.5rem;">Edit ZingP Data</a>
-                            <hr>
-                            <a href="admin-evolv.html" style="display: block; margin-top: 0.5rem; margin-bottom: 0.5rem;">Edit Evolv Data</a>
-                            <a href="admin-sc.html" style="display: block; margin-bottom: 0.5rem;">Edit SC Data</a>
-                            <a href="admin-zing1.html" style="display: block; margin-bottom: 0.5rem;">Edit Zing1 Data</a>
-                            <a href="admin-zing2.html" style="display: block; margin-bottom: 0.5rem;">Edit Zing2 Data</a>
-                            <a href="admin-users.html" style="display: block; margin-top: 0.5rem; font-weight: bold;">Manage Users</a>
-                            <a href="admin-companies.html" style="display: block; margin-top: 0.5rem; font-weight: bold;">Manage Companies</a>
-                        `;
-                    }
-                } catch (err) {
-                    console.error("Error checking admin status:", err);
-                }
-
-            } else {
-                // User is not logged in
-                authButton.textContent = 'Login';
-                authButton.onclick = () => window.location.href = 'login.html';
-                userLinksContainer.innerHTML = ''; // Clear user links on logout
-            }
-        });
-
-        // This function now runs for everyone
-        buildProductLinks();
-
-        function buildProductLinks() {
-            // Links to every HTML file in the project (excluding this index page)
-            const pages = [
-                { href: 'z2of.html', text: 'z2of.html' },
-                { href: 'z1of.html', text: 'z1of.html' },
-                { href: 'SCof26.html', text: 'SCof26.html' },
-                { href: 'Eof.html', text: 'Eof.html' },
-                { href: 'SCof.html', text: 'SCof.html' },
-                { href: 'admin-zing1.html', text: 'admin-zing1.html' },
-                { href: 'BMconfig.html', text: 'BMconfig.html' },
-                { href: 'BM.html', text: 'BM.html' },
-                { href: 'new-file.html', text: 'new-file.html' },
-                { href: 'admin-zingp.html', text: 'admin-zingp.html' },
-                { href: 'admin-sc.html', text: 'admin-sc.html' },
-                { href: 'admin-evolv.html', text: 'admin-evolv.html' },
-                { href: 'admin-strapstand.html', text: 'admin-strapstand.html' },
-                { href: 'admin-bantamsx.html', text: 'admin-bantamsx.html' },
-                { href: 'admin-zing2.html', text: 'admin-zing2.html' },
-                { href: 'admin-glider.html', text: 'admin-glider.html' },
-                { href: 'admin-bantamm.html', text: 'admin-bantamm.html' },
-                { href: 'login.html', text: 'login.html' },
-                { href: 'SC.html', text: 'SC.html' }
+            // --- Define your order form pages here ---
+            const orderForms = [
+                { url: 'BM.html', title: 'Bantam Medium Order Form' },
+                { url: 'evolv.html', title: 'Evolv Order Form' },
+                { url: 'SC.html', title: 'Shower Commode Order Form' },
+                { url: 'zing1.html', title: 'Zing Size 1 Order Form' },
+                { url: 'zing2.html', title: 'Zing Size 2 Order Form' }
             ];
-            const productLinksList = document.getElementById('product-links');
-            productLinksList.innerHTML = ''; // Clear existing links
-            pages.forEach(page => {
-                const listItem = document.createElement('li');
-                const link = document.createElement('a');
-                link.classList.add('product-link');
-                link.href = page.href;
-                link.textContent = page.text;
-                listItem.appendChild(link);
-                productLinksList.appendChild(listItem);
+
+            orderForms.forEach(form => {
+                orderFormNav.add(new Option(form.title, form.url));
             });
-        }
+
+            // --- Define your admin pages here ---
+            const adminPages = [
+                { url: 'admin-bantamm.html', title: 'Bantam Medium Admin' },
+                { url: 'admin-bantamsx.html', title: 'Bantam Small/X-Small Admin' },
+                { url: 'admin-evolv.html', title: 'Evolv Admin' },
+                { url: 'admin-glider.html', title: 'Glider Admin' },
+                { url: 'admin-sc.html', title: 'Shower Commode Admin' },
+                { url: 'admin-strapstand.html', title: 'StrapStand Admin' },
+                { url: 'admin-users.html', title: 'User Management' },
+                { url: 'admin-zing1.html', title: 'Zing Size 1 Admin' },
+                { url: 'admin-zing2.html', title: 'Zing Size 2 Admin' },
+                { url: 'admin-zingp.html', title: 'Zing Prone Admin' }
+                // To add a new page, just add a new line to this array.
+            ];
+
+            // Populate the admin dropdown
+            adminPages.forEach(page => {
+                const option = new Option(page.title, page.url);
+                adminNav.add(option);
+            });
+
+            firebase.auth().onAuthStateChanged(user => {
+                if (user) {
+                    authButton.textContent = 'Logout';
+                    myBuildsLink.style.display = 'inline'; // Show My Builds link
+                    userProfileLink.style.display = 'inline'; // Show My Profile link
+                    authButton.onclick = () => firebase.auth().signOut();
+                } else {
+                    authButton.textContent = 'Login';
+                    myBuildsLink.style.display = 'none'; // Hide My Builds link
+                    userProfileLink.style.display = 'none'; // Hide My Profile link
+                    authButton.onclick = () => window.location.href = 'login.html';
+                }
+            });
+        });
     </script>
+
 </body>
 </html>

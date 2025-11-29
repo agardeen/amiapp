@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
+            authDomain: "amiapp-e1d48.firebaseapp.com",
+            projectId: "amiapp-e1d48",
+            storageBucket: "amiapp-e1d48.appspot.com",
+            messagingSenderId: "709156310854",
+            appId: "1:709156310854:web:464a879038815ede871f47",
+            measurementId: "G-TKSX1GEVSS"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        #user-profile-container {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 2rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .loading, .error { text-align: center; padding: 2rem; }
+        .form-row {
+            display: grid;
+            /* Creates responsive columns that are at least 150px wide */
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="user-profile-container">
+        <!-- Vue.js app will be mounted here -->
+    </div>
+
+    <!-- 1. Include Vue.js library -->
+    <script src="https://unpkg.com/vue@3"></script>
+
+    <!-- 2. Template Definition -->
+    <script type="text/x-template" id="user-profile-template">
+        <div style="display: flex; justify-content: center; align-items: center; position: relative; margin-bottom: 2rem;">
+            <a href="index.html" title="Home" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); color: var(--text-main);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+            </a>
+            <h2 style="margin: 0;">My Profile</h2>
+        </div>
+
+        <div v-if="isLoading" class="loading">Loading your details...</div>
+        <div v-else-if="error" class="error">{{ error }}</div>
+        <form v-else @submit.prevent="saveUserDetails">
+            <div class="form-row">
+                <div>
+                    <label for="name">Name</label>
+                    <input type="text" id="name" v-model="user.name">
+                </div>
+                <div>
+                    <label for="email">Email</label>
+                    <input type="email" id="email" v-model="user.email" readonly disabled title="Email cannot be changed here.">
+                </div>
+                <div>
+                    <label for="phone">Phone</label>
+                    <input type="tel" id="phone" v-model="user.phone">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="company">Company</label>
+                    <input type="text" id="company" v-model="user.company">
+                </div>
+                <div>
+                    <label for="account-number">Account Number</label>
+                    <input type="text" id="account-number" v-model="user.accountNumber">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="address">Address</label>
+                    <textarea id="address" v-model="user.address" rows="3"></textarea>
+                </div>
+                <div>
+                    <label for="shipping-address">Shipping Address</label>
+                    <textarea id="shipping-address" v-model="user.shippingAddress" rows="3"></textarea>
+                </div>
+            </div>
+
+            <label for="country">Country</label>
+            <input type="text" id="country" v-model="user.country">
+
+            <button type="submit">Save Details</button>
+        </form>
+    </script>
+
+    <!-- 3. Logic -->
+    <script type="module">
+        import { initializeUserPage } from './user-logic.js';
+        initializeUserPage();
+    </script>
+
+</body>
+</html>

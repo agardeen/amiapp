@@ -40,8 +40,11 @@
                 <label for="password">Password</label>
                 <input type="password" id="password" required>
             </div>
-            <button type="button" id="login-button">Login</button>
-            <button type="button" id="signup-button">Sign Up</button>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button type="button" id="login-button">Login</button>
+                <button type="button" id="signup-button">Sign Up</button>
+            </div>
+            <a href="#" id="forgot-password-link" style="display: block; text-align: center; margin-top: 1rem; font-size: 0.9rem;">Forgot Password?</a>
         </form>
         <p id="error-message" class="error-message"></p>
     </div>
@@ -72,6 +75,7 @@
         const passwordInput = document.getElementById('password');
         const loginButton = document.getElementById('login-button');
         const signupButton = document.getElementById('signup-button');
+        const forgotPasswordLink = document.getElementById('forgot-password-link');
         const errorMessage = document.getElementById('error-message');
 
         // Get the redirect URL from the query parameter, or default to index.html
@@ -107,6 +111,24 @@
                 .then((userCredential) => {
                     // Signed up and signed in
                     window.location.href = redirectUrl;
+                })
+                .catch((error) => {
+                    errorMessage.textContent = error.message;
+                });
+        });
+
+        forgotPasswordLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            const email = emailInput.value;
+            if (!email) {
+                errorMessage.textContent = 'Please enter your email address above to reset your password.';
+                return;
+            }
+
+            auth.sendPasswordResetEmail(email)
+                .then(() => {
+                    errorMessage.textContent = ''; // Clear any previous errors
+                    alert(`A password reset link has been sent to ${email}. Please check your inbox.`);
                 })
                 .catch((error) => {
                     errorMessage.textContent = error.message;

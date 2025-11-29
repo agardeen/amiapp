@@ -87,22 +87,15 @@
             flex-direction: column;
             height: 500px; /* Example height, adjust as needed */
         }
-        .tab-content-config select {
-            max-width: 75%;
-        }
         .tab-content-config select, .tab-content-config label {
             font-size: 0.85rem; /* Reduce form control text size by 15% */
-        }
-        /* Override for the Frame Color dropdown to allow it to be full width */
-        .tab-content-config select[id="Frame Color"] {
-            max-width: none;
         }
         .form-group {
             margin-bottom: 0.6rem; /* Reduced vertical spacing by 60% */
         }
-        .bottom-section {
+        .tab-content-config {
             overflow-y: auto;
-            flex-grow: 1;
+            padding-right: 1rem; /* Add padding to the right to account for the scrollbar */
         }
         .price-column {
             display: flex; flex-direction: column; align-items: flex-end; gap: 0;
@@ -110,9 +103,6 @@
         .top-section .form-group {
             /* Add padding to the right to account for the scrollbar in the bottom section */
             padding-right: 17px; 
-        }
-        .clear-button {
-            padding: 2px 3px;
         }
         .submit-button {
             background-color: green;
@@ -123,11 +113,24 @@
             background-color: #ffcccc; /* Pale red */
             color: #333;
         }
+        .actions-bar {
+            display: flex;
+            justify-content: space-around; /* Distribute buttons evenly */
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem; /* Space below the bar */
+        }
         .form-row {
             display: flex;
             justify-content: space-between;
             align-items: left;
             gap: 1rem;
+        }
+        .price-columns-container {
+            display: flex;
+            gap: 0.5rem; /* Match the gap from the total price display */
+            align-items: center;
+            justify-content: flex-end; /* Align prices to the right */
         }
         .price-display {
             text-align: right;
@@ -248,25 +251,54 @@
         <div v-show="activeTab === 'configuration'" class="tab-content-config">
             <div v-if="isLoading" class="loading">Loading Build...</div>
             <form v-else-if="!error" style="display: flex; flex-direction: column; height: 100%;">
-                <!-- TOP (FIXED) SECTION -->
-                <div class="top-section">
+                <!-- Combined Section -->
+                    <!-- Buttons and Defaults Section -->
+                    <div v-if="selectedBase" class="actions-bar">
+                        <label>
+                            <input type="checkbox" v-model="selectDefaults"> Select Defaults
+                        </label>
+                        <button @click.prevent="clearConfiguration" type="button" class="clear-button">
+                            Clear
+                        </button>
+                        <button @click.prevent="saveConfiguration" type="button" class="clear-button" title="Login required">
+                            Save
+                        </button>
+                        <button @click.prevent="loadConfiguration" type="button" class="clear-button" title="Login required">
+                            Load
+                        </button>
+                        <button @click.prevent="submitConfiguration" type="button" class="clear-button submit-button" :class="{ 'invalid-submit': isFormInvalid }">
+                            Submit
+                        </button>
+                    </div>
+
+                    <!-- Base Product Selection -->
                     <div class="form-group">
                         <div class="form-row" @mouseenter="hoveredControlId = 'base-product'" @mouseleave="hoveredControlId = null">
                             <select id="base-product" v-model="selectedBaseId" required >
                                 <option disabled value="">Base</option>
                                 <option v-for="product in baseProducts" :key="product.ID" :value="product.ID">
-                                {{ product.ITEM === product.DESCRIPTION ? product.ITEM : product.ITEM + ' ' + product.DESCRIPTION }} <span v-if="parseFloat(product['MSRP 25']) > 0">${{ product['MSRP 25'] }}</span>
+                                {{ product.ITEM === product.DESCRIPTION ? product.ITEM : product.ITEM + ' ' + product.DESCRIPTION }} <span v-if="parseFloat(product[priceField]) > 0">${{ product[priceField] }}</span>
                                 </option>
                             </select>
-                            <div class="price-column">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <label style="font-size: 0.85rem;">Total:</label>
-                                <input type="text" readonly class="price-display total-price-display compact-price-box" :value="'$' + totalPrice">
-                            </div>
-                            <div v-if="selectedBase" style="display: flex; align-items: center; gap: 0.5rem;">
-                                <label style="font-size: 0.85rem; color: #888;">Base:</label>
-                                <input type="text" readonly class="price-display compact-price-box" :value="'$' + selectedBase['MSRP 25']">
-                            </div>
+                            <div class="price-column" style="min-width: 29ch;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="font-size: 0.85rem; opacity: 0.05;">ListHeader:</label>
+                                    <template v-for="header in selectedPriceHeaders" :key="header">
+                                        <input type="text" readonly class="price-display compact-price-box" :value="header" style="text-align: center;">
+                                    </template>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="font-size: 0.85rem;">Total:</label>
+                                    <template v-for="header in selectedPriceHeaders" :key="header">
+                                        <input type="text" readonly class="price-display total-price-display compact-price-box" :value="'$' + getHeaderTotal(header)">
+                                    </template>
+                                </div>
+                                <div v-if="selectedBase" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="font-size: 0.85rem; color: #888;">Base:</label>
+                                    <template v-for="header in selectedPriceHeaders" :key="header">
+                                        <input type="text" readonly class="price-display compact-price-box" :value="'$' + (selectedBase[header] || 0)">
+                                    </template>
+                                </div>
                             </div>
                         </div>
                         <div v-if="hoveredControlId === 'base-product' && getHoveredItem({ id: 'base-product' }) && (getHoveredItem({ id: 'base-product' }).Notes || getHoveredItem({ id: 'base-product' }).Link)" class="notes-display">
@@ -276,77 +308,32 @@
                             <img v-if="getHoveredItem({ id: 'base-product' }).Link" :src="getHoveredItem({ id: 'base-product' }).Link" class="notes-image" alt="Note Image">
                         </div>
                     </div>
-                    <!-- Explicitly render Frame Color control if it exists -->
-                    <div v-if="frameColorControl" class="form-group">
-                        <div class="form-row">
-                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                <!-- Required Dropdown (DDR) -->
-                                <select :id="frameColorControl.id" v-model="formSelections[frameColorControl.id]" required @mouseenter="hoveredControlId = frameColorControl.id" @mouseleave="hoveredControlId = null">
-                                    <option disabled value="">{{ frameColorControl.label }}</option>
-                                    <option v-for="option in frameColorControl.options" :key="option.ID" :value="option.ID">
-                                        {{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option['MSRP 25']) > 0">${{ option['MSRP 25'] }}</span>
-                                    </option>
-                                </select>
-                                <label>
-                                    <input type="checkbox" v-model="selectFrameColorDefaults"> Select Defaults
-                                </label>
-                                <button @click.prevent="clearConfiguration" type="button" class="clear-button">
-                                    Clear
-                                </button>
-                                <button @click.prevent="saveConfiguration" type="button" class="clear-button">
-                                    Save
-                                </button>
-                                <button @click.prevent="loadConfiguration" type="button" class="clear-button">
-                                    Load
-                                </button>
-                                <button @click.prevent="submitConfiguration" type="button" class="clear-button submit-button" :class="{ 'invalid-submit': isFormInvalid }">
-                                    Submit
-                                </button>
-                            </div>
-                            <!-- Price display for all dynamic controls -->
-                            <input v-if="selectedOptions[frameColorControl.id] && parseFloat(selectedOptions[frameColorControl.id]['MSRP 25']) > 0" type="text" readonly class="price-display" :value="'$' + selectedOptions[frameColorControl.id]['MSRP 25']">
-                        </div>
-                        <div v-if="hoveredControlId === frameColorControl.id && getHoveredItem(frameColorControl) && (getHoveredItem(frameColorControl).Notes || getHoveredItem(frameColorControl).Link)" class="notes-display">
-                            <div v-if="getHoveredItem(frameColorControl).Notes" class="notes-text">
-                                {{ getHoveredItem(frameColorControl).Notes }}
-                            </div>
-                            <img v-if="getHoveredItem(frameColorControl).Link" :src="getHoveredItem(frameColorControl).Link" class="notes-image" alt="Note Image">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- BOTTOM (SCROLLABLE) SECTION -->
-                <div class="bottom-section">
                     <!-- Dynamically Rendered Conditional Controls -->
-                    <div v-if="selectedBase">
-                        <div v-for="control in otherConditionalControls" :key="control.id" class="form-group">
-                            <div class="form-row">
-                                <!-- Required Dropdown (DDR) -->
-                                <select v-if="control.controlType === 'DDR'" :id="control.id" v-model="formSelections[control.id]" required @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
-                                    <option disabled value="">{{ control.label }}</option>
-                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">
-                                        {{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option['MSRP 25']) > 0">${{ option['MSRP 25'] }}</span>
-                                    </option>
-                                </select>
-                                
-                                <!-- Non-Required Dropdown (DD) -->
-                                <select v-if="control.controlType === 'DD'" :id="control.id" v-model="formSelections[control.id]" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" :required="control.section === 'Pattern' && isPatternRequired">
-                                    <option value="">No {{ control.section }}</option>
-                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">
-                                        {{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option['MSRP 25']) > 0">${{ option['MSRP 25'] }}</span>
-                                    </option>
-                                </select>
-
-                                <!-- Checkbox (CB) -->
-                                <label v-if="control.controlType === 'CB'" :for="control.id" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
-                                    <input type="checkbox" :id="control.id" v-model="formSelections[control.id]" :disabled="isCheckboxDisabled(control.id)">
-                                    {{ control.label }} <span v-if="parseFloat(control.price) > 0">- ${{ control.price }}</span>
-                                </label>
-
-                                <!-- Price display for all dynamic controls -->
-                                <input v-if="(control.controlType === 'DDR' || control.controlType === 'DD') && selectedOptions[control.id] && parseFloat(selectedOptions[control.id]['MSRP 25']) > 0" type="text" readonly class="price-display" :value="'$' + selectedOptions[control.id]['MSRP 25']">
-                                <input v-if="control.controlType === 'CB' && formSelections[control.id] && parseFloat(control.price) > 0" type="text" readonly class="price-display" :value="'$' + control.price">
-
+                    <div v-if="selectedBase" >
+                        <div v-for="control in conditionalControls" :key="control.id" class="form-group">
+                            <div class="form-row-bottom">
+                                <!-- Left Side: Control -->
+                                <div style="flex-grow: 1;">
+                                    <select v-if="control.controlType === 'DDR'" :id="control.id" v-model="formSelections[control.id]" required @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" style="width: 100%;">
+                                        <option disabled value="">{{ control.label }}</option>
+                                        <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span></option>
+                                    </select>
+                                    <select v-if="control.controlType === 'DD'" :id="control.id" v-model="formSelections[control.id]" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" :required="control.section === 'Pattern' && isPatternRequired" style="width: 100%;">
+                                        <option :value="undefined">{{ control.label }}</option>
+                                        <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span></option>
+                                    </select>
+                                    <label v-if="control.controlType === 'CB'" :for="control.id" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
+                                        <input type="checkbox" :id="control.id" v-model="formSelections[control.id]" :disabled="isCheckboxDisabled(control.id)">
+                                        {{ control.label }} <span v-if="parseFloat(control.price) > 0">${{ control.price }}</span>
+                                    </label>
+                                </div>
+                                <!-- Right Side: Prices -->
+                                <div class="price-columns-container" v-if="shouldShowPrice(control)">
+                                    <template v-for="header in selectedPriceHeaders" :key="header">
+                                        <input v-if="(control.controlType === 'DDR' || control.controlType === 'DD') && selectedOptions[control.id]" type="text" readonly class="price-display" :value="selectedOptions[control.id][header] > 0 ? '$' + selectedOptions[control.id][header] : ''">
+                                        <input v-if="control.controlType === 'CB' && formSelections[control.id]" type="text" readonly class="price-display" :value="getCheckboxPrice(control, header) > 0 ? '$' + getCheckboxPrice(control, header) : ''">
+                                    </template>
+                                </div>
                             </div>
                             <div v-if="hoveredControlId === control.id && getHoveredItem(control) && (getHoveredItem(control).Notes || getHoveredItem(control).Link)" class="notes-display">
                                 <div v-if="getHoveredItem(control).Notes" class="notes-text">
@@ -356,7 +343,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
             </form>
             <div v-else class="error">{{ error }}</div>
         </div>
@@ -416,7 +402,7 @@
                              <td>{{ item.Section }}</td>
                              <td>{{ item.ITEM && item.ITEM.endsWith('u') ? item.ITEM.slice(0, -1) : item.ITEM }}</td>
                              <td>{{ item.DESCRIPTION }}</td>
-                             <td style="text-align: right;">${{ parseFloat(item['MSRP 25']) || 0 }}</td>
+                             <td style="text-align: right;">${{ parseFloat(item[priceField]) || 0 }}</td>
                          </tr>
                      </tbody>
                      <tfoot>
@@ -473,6 +459,36 @@
              </div>
              <hr>
              <div>
+                 <h4>Build</h4>
+                 <!-- Settings for the Build tab will go here -->
+                 <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
+                     <label>Select Price Columns to Display:</label>
+                     <div class="custom-multiselect" ref="priceColumnSelector">
+                         <div class="multiselect-display" @click="togglePriceColumnDropdown">
+                             <div v-if="selectedPriceHeaders.length === 0" style="padding: 5px 0;">Select Price Columns</div>
+                             <div v-else class="selected-items-container">
+                                 <span v-for="(header, index) in selectedPriceHeaders"
+                                       :key="header"
+                                       class="selected-item-tag"
+                                       draggable="true"
+                                       @dragstart="dragStart(index, $event)"
+                                       @dragover.prevent="dragOver(index, $event)"
+                                       @dragleave="dragLeave($event)"
+                                       @drop="onDrop(index, $event)">
+                                     {{ header }}
+                                 </span>
+                             </div>
+                         </div>
+                         <div class="multiselect-options" v-if="isPriceColumnDropdownOpen">
+                             <label v-for="header in priceColumnHeaders" :key="header" style="display: block; padding: 5px 10px;">
+                                 <input type="checkbox" :value="header" v-model="selectedPriceHeaders"> {{ header }}
+                             </label>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+             <hr>
+             <div>
                  <h4>Item List</h4>
                  <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
                      <label>Select Table Columns to Display:</label>
@@ -488,6 +504,11 @@
                      </div>
                  </div>
              </div>
+             <hr>
+             <div>
+                 <h4>Summary</h4>
+                 <!-- Settings for the Summary tab will go here -->
+             </div>
          </div>
      </script>
  
@@ -497,7 +518,7 @@
          initializeConfigurator({
              productName: 'Zing Size 1',
              firestoreDocId: 'zing1',
-             priceFields: ['MSRP 25'] // Pass the price field as an array
+             priceFields: ['MSRP 25'] // Default price field
          });
      </script>
  
