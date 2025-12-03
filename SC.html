@@ -82,23 +82,11 @@
             display: flex;
             flex-direction: column;
             height: 500px; /* Example height, adjust as needed */
-        }
-        .tab-content-config select {
-            min-width: 200px; /* Prevent select from becoming too small */
-        }
-        .tab-content-config select, .tab-content-config label {
-            font-size: 0.85rem; /* Reduce form control text size by 15% */
-        }
-        /* Override for the Frame Color dropdown to allow it to be full width */
-        .tab-content-config select[id="Frame Color"] {
-            max-width: none;
+            overflow-y: auto;
+            padding-right: 1rem; /* Add padding to the right to account for the scrollbar */
         }
         .form-group {
             margin-bottom: 0.6rem; /* Reduced vertical spacing by 60% */
-        }
-        .bottom-section {
-            overflow-y: auto;
-            flex-grow: 1;
         }
         .price-column {
             display: flex; flex-direction: column; align-items: flex-end; gap: 0;
@@ -111,7 +99,15 @@
         .price-columns-container {
             display: flex;
             gap: 0.5rem;
-            align-items: flex-start;
+            align-items: center;
+            justify-content: flex-end; /* Align prices to the right */
+        }
+        .actions-bar {
+            display: flex;
+            justify-content: space-around; /* Distribute buttons evenly */
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem; /* Space below the bar */
         }
         .top-section .form-group {
             /* Add padding to the right to account for the scrollbar in the bottom section */
@@ -133,11 +129,6 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            gap: 1rem;
-        }
-        .form-row-bottom {
-            display: flex;
-            align-items: center; /* Vertically center items in the row */
             gap: 1rem;
         }
         .form-row > :first-child {
@@ -264,16 +255,37 @@
         <div v-show="activeTab === 'configuration'" class="tab-content-config">
             <div v-if="isLoading" class="loading">Loading Build...</div>
             <form v-else-if="!error" style="display: flex; flex-direction: column; height: 100%;">
-                <!-- TOP (FIXED) SECTION -->
-                <div class="top-section">
+                <!-- Combined Section -->
+                    <!-- Buttons and Defaults Section -->
+                    <div v-if="selectedBase" class="actions-bar">
+                        <label>
+                            <input type="checkbox" v-model="selectDefaults"> Select Defaults
+                        </label>
+                        <button @click.prevent="clearConfiguration" type="button" class="clear-button">
+                            Clear
+                        </button>
+                        <button @click.prevent="saveConfiguration" type="button" class="clear-button" title="Login required">
+                            Save
+                        </button>
+                        <button @click.prevent="loadConfiguration" type="button" class="clear-button" title="Login required">
+                            Load
+                        </button>
+                        <button @click.prevent="submitConfiguration" type="button" class="clear-button submit-button" :class="{ 'invalid-submit': isFormInvalid }">
+                            Submit
+                        </button>
+                    </div>
+
+                    <!-- Base Product Selection -->
                     <div class="form-group">
                         <div class="form-row" @mouseenter="hoveredControlId = 'base-product'" @mouseleave="hoveredControlId = null" style="align-items: center;">
-                            <select id="base-product" v-model="selectedBaseId" required >
-                                <option disabled value="">Base</option>
-                                <option v-for="product in baseProducts" :key="product.ID" :value="product.ID">
-                                {{ product.ITEM === product.DESCRIPTION ? product.ITEM : product.ITEM + ' ' + product.DESCRIPTION }} <span v-if="parseFloat(product['MSRP 26']) > 0">${{ product['MSRP 26'] }}</span>
-                                </option>
-                            </select>                            
+                            <div style="flex-grow: 1;">
+                                <select id="base-product" v-model="selectedBaseId" required style="width: 100%;">
+                                    <option disabled value="">Base</option>
+                                    <option v-for="product in baseProducts" :key="product.ID" :value="product.ID">
+                                    {{ product.ITEM === product.DESCRIPTION ? product.ITEM : product.ITEM + ' ' + product.DESCRIPTION }} <span v-if="parseFloat(product[priceField]) > 0">${{ product[priceField] }}</span>
+                                    </option>
+                                </select>
+                            </div>
                             <div class="price-column" style="min-width: 29ch;">
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <label style="font-size: 0.85rem; opacity: 0.05;">ListHeader:</label>
@@ -284,13 +296,27 @@
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <label style="font-size: 0.85rem;">Total:</label>
                                     <template v-for="header in selectedPriceHeaders" :key="header">
-                                        <input type="text" readonly class="price-display total-price-display compact-price-box" :value="'$' + getHeaderTotal(header)" :style="{ color: header === 'Off Unit' ? 'blue' : '' }">
+                                        <input type="text" readonly class="price-display total-price-display compact-price-box" :value="'$' + getHeaderTotal(header)">
                                     </template>
                                 </div>
                                 <div v-if="selectedBase" style="display: flex; align-items: center; gap: 0.5rem;">
                                     <label style="font-size: 0.85rem; color: #888;">Base:</label>
                                     <template v-for="header in selectedPriceHeaders" :key="header">
-                                        <input type="text" readonly class="price-display compact-price-box" :value="'$' + (selectedBase[header] || 0)">
+                                        <input type="text" readonly class="price-display compact-price-box" :value="selectedBase[header] > 0 ? '$' + selectedBase[header] : ''">
+                                    </template>
+                                </div>
+                                <div v-if="selectedPriceHeaders.some(h => h.toLowerCase() === 'cost')" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="font-size: 0.85rem; color: #888;">Margin:</label>
+                                    <template v-for="header in selectedPriceHeaders" :key="header">
+                                        <input v-if="header.toLowerCase() !== 'cost'"
+                                               type="text"
+                                               readonly
+                                               class="price-display compact-price-box"
+                                               @click="toggleMarginDisplay(header)"
+                                               :value="marginDisplayState[header] === 'percentage' ? getMarginPercentage(header) : '$' + getMargin(header)"
+                                               style="cursor: pointer;"
+                                               :title="'Click to toggle Margin % / $'">
+                                        <input v-else type="text" readonly class="price-display compact-price-box" value="">
                                     </template>
                                 </div>
                             </div>
@@ -302,60 +328,21 @@
                             <img v-if="getHoveredItem({ id: 'base-product' }).Link" :src="getHoveredItem({ id: 'base-product' }).Link" class="notes-image" alt="Note Image">
                         </div>
                     </div>
-
-                    <!-- Explicitly render Frame Color control if it exists -->
-                    <div v-if="frameColorControl" class="form-group">
-                        <div class="form-row">
-                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                <!-- Required Dropdown (DDR) -->
-                                <select :id="frameColorControl.id" v-model="formSelections[frameColorControl.id]" required @mouseenter="hoveredControlId = frameColorControl.id" @mouseleave="hoveredControlId = null">
-                                    <option disabled value="">{{ frameColorControl.label }}</option>
-                                    <option v-for="option in frameColorControl.options" :key="option.ID" :value="option.ID">
-                                        {{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option['MSRP 26']) > 0">${{ option['MSRP 26'] }}</span>
-                                    </option>
-                                </select>
-                                <label>
-                                    <input type="checkbox" v-model="selectFrameColorDefaults"> Select Defaults
-                                </label>
-                                <button @click.prevent="clearConfiguration" type="button" class="clear-button">
-                                    Clear
-                                </button>
-                                <button @click.prevent="saveConfiguration" type="button" class="clear-button">
-                                    Save
-                                </button>
-                                <button @click.prevent="loadConfiguration" type="button" class="clear-button">
-                                    Load
-                                </button>
-                                <button @click.prevent="submitConfiguration" type="button" class="clear-button submit-button" :class="{ 'invalid-submit': isFormInvalid }">
-                                    Submit
-                                </button>
-                            </div>
-                            <!-- Price display for all dynamic controls -->
-                        </div>
-                        <div v-if="hoveredControlId === frameColorControl.id && getHoveredItem(frameColorControl) && (getHoveredItem(frameColorControl).Notes || getHoveredItem(frameColorControl).Link)" class="notes-display">
-                            <div v-if="getHoveredItem(frameColorControl).Notes" class="notes-text">
-                                {{ getHoveredItem(frameColorControl).Notes }}
-                            </div>
-                            <img v-if="getHoveredItem(frameColorControl).Link" :src="getHoveredItem(frameColorControl).Link" class="notes-image" alt="Note Image">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- BOTTOM (SCROLLABLE) SECTION -->
-                <div v-if="selectedBase" class="bottom-section">
-                    <div v-for="control in otherConditionalControls" :key="control.id" class="form-group">
-                        <div class="form-row-bottom">
+                    <!-- Dynamically Rendered Conditional Controls -->
+                    <div v-if="selectedBase" >
+                        <div v-for="control in conditionalControls" :key="control.id" class="form-group">
+                            <div class="form-row">
                             <!-- Left Side: Control -->
                             <div style="flex-grow: 1;">
                                 <select v-if="control.controlType === 'DDR'" :id="control.id" v-model="formSelections[control.id]" required @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" style="width: 100%;">
                                     <option disabled value="">{{ control.label }}</option>
-                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option['MSRP 26']) > 0">${{ option['MSRP 26'] }}</span></option>
+                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span></option>
                                 </select>
                                 <select v-if="control.controlType === 'DD'" :id="control.id" v-model="formSelections[control.id]" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" :required="control.section === 'Pattern' && isPatternRequired" style="width: 100%;">
-                                    <option value="">No {{ control.section }}</option>
-                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option['MSRP 26']) > 0">${{ option['MSRP 26'] }}</span></option>
+                                    <option :value="undefined">{{ control.label }}</option>
+                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span></option>
                                 </select>
-                                <label v-if="control.controlType === 'CB'" :for="control.id" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
+                                <label v-if="control.controlType === 'CB' || control.controlType === 'CBR'" :for="control.id" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
                                     <input type="checkbox" :id="control.id" v-model="formSelections[control.id]" :disabled="isCheckboxDisabled(control.id)">
                                     {{ control.label }} <span v-if="parseFloat(control.price) > 0">${{ control.price }}</span>
                                 </label>
@@ -363,8 +350,10 @@
                             <!-- Right Side: Prices -->
                             <div class="price-columns-container" v-if="shouldShowPrice(control)">
                                 <template v-for="header in selectedPriceHeaders" :key="header">
-                                    <input v-if="(control.controlType === 'DDR' || control.controlType === 'DD') && selectedOptions[control.id]" type="text" readonly class="price-display" :value="selectedOptions[control.id][header] > 0 ? '$' + selectedOptions[control.id][header] : ''">
-                                    <input v-if="control.controlType === 'CB' && formSelections[control.id]" type="text" readonly class="price-display" :value="getCheckboxPrice(control, header) > 0 ? '$' + getCheckboxPrice(control, header) : ''">
+                                    <!-- Price for Dropdowns -->
+                                    <input v-if="(control.controlType === 'DDR' || control.controlType === 'DD') && selectedOptions[control.id]" type="text" readonly class="price-display" :value="selectedOptions[control.id][header] > 0 ? '$' + selectedOptions[control.id][header] : ''" :style="{ color: header === 'Off Unit' ? 'blue' : '' }">
+                                    <!-- Price for Checkboxes -->
+                                    <input v-if="(control.controlType === 'CB' || control.controlType === 'CBR') && formSelections[control.id]" type="text" readonly class="price-display" :value="getCheckboxPrice(control, header) > 0 ? '$' + getCheckboxPrice(control, header) : ''" :style="{ color: header === 'Off Unit' ? 'blue' : '' }">
                                 </template>
                             </div>
                         </div>
@@ -373,7 +362,6 @@
                             <img v-if="getHoveredItem(control).Link" :src="getHoveredItem(control).Link" class="notes-image" alt="Note Image">
                         </div>
                     </div>
-                </div>
             </form>
             <div v-else class="error">{{ error }}</div>
         </div>
@@ -478,7 +466,7 @@
                             <th>Section</th>
                             <th>Item</th>
                             <th>Description</th>
-                            <th style="text-align: right;">Price</th>
+                            <th style="text-align: right;">Price</th> 
                         </tr>
                     </thead>
                     <tbody>
@@ -486,13 +474,13 @@
                             <td>{{ item.Section }}</td>
                             <td>{{ item.ITEM && item.ITEM.endsWith('u') ? item.ITEM.slice(0, -1) : item.ITEM }}</td>
                             <td>{{ item.DESCRIPTION }}</td>
-                            <td style="text-align: right;">${{ parseFloat(item['MSRP 26']) || 0 }}</td>
+                            <td style="text-align: right;">${{ parseFloat(item[priceField]) || 0 }}</td>
                         </tr>
                     </tbody>
                     <tfoot>
                         <tr>
                             <td colspan="3" style="text-align: right; font-weight: bold;">Total Price:</td>
-                            <td style="text-align: right; font-weight: bold;">${{ totalPrice }}</td>
+                            <td style="text-align: right; font-weight: bold;">${{ getHeaderTotal(priceField) }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -570,6 +558,64 @@
                         </div>
                     </div>
                 </div>
+                <div class="form-group" style="display: flex; gap: 2rem; align-items: flex-end;">
+                    <div>
+                        <label for="base-discount">Base Discount:</label>
+                        <input type="number" id="base-discount" v-model.number="baseDiscount" placeholder="%" style="width: 7ch;">
+                    </div>
+                    <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                        <div>
+                            <label for="secondary-discount">Secondary:</label>
+                            <input type="number" id="secondary-discount" v-model.number="secondaryDiscount" placeholder="%" style="width: 7ch;">
+                        </div>
+                        <select v-model="secondaryDiscountSource" style="margin-bottom: 0;">
+                            <option disabled value="">Select Source</option>
+                            <option v-for="header in priceColumnHeaders" :key="header" :value="header">{{ header }}</option>
+                        </select>
+                        <div>
+                            <label for="secondary-discount-name">Discount Name</label>
+                            <input type="text" id="secondary-discount-name" v-model="secondaryDiscountName" style="margin-bottom: 0;">
+                        </div>
+                        <button @click.prevent="createDiscountColumn" type="button" style="margin-bottom: 0;">Create Discount</button>
+                    </div>
+                </div>
+                <!-- New section for managing profiles -->
+                <div v-if="savedDiscountProfiles.length > 0" class="form-group" style="margin-top: 1.5rem; border-top: 1px solid #ccc; padding-top: 1rem;">
+                    <label>Manage Saved Profiles</label>
+                    <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                        <select v-model="profileToManageId" style="margin-bottom: 0;">
+                            <option disabled value="">Select a Profile to Manage</option>
+                            <option v-for="profile in savedDiscountProfiles" :key="profile.id" :value="profile.id">{{ profile.discountName }}</option>
+                        </select>
+                        <button @click.prevent="renameDiscountProfile" type="button" style="margin-bottom: 0;">Rename</button>
+                        <button @click.prevent="deleteDiscountProfile" type="button" style="margin-bottom: 0; color: red;">Delete</button>
+                    </div>
+                </div>
+                <div v-if="savedDiscountProfiles.length > 0" class="form-group" style="display: flex; gap: 1rem; align-items: flex-end; margin-top: 1rem;">
+                    <div>
+                        <label for="saved-discounts">Apply a Saved Discount:</label>
+                        <select id="saved-discounts" v-model="selectedDiscountProfileId">
+                            <option disabled value="">Select a Profile</option>
+                            <option v-for="profile in savedDiscountProfiles" :key="profile.id" :value="profile.id">
+                                {{ profile.discountName }}
+                            </option>
+                        </select>
+                    </div>
+                    <button @click.prevent="applyDiscountProfile" type="button" style="margin-bottom: 0;">Apply</button>
+                </div>
+            </div>
+            <hr>
+            <div>
+                <h4>Cost</h4>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" v-model="showCosts"> Show Costs
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="overhead-costs">Overhead Costs</label>
+                    <input type="number" id="overhead-costs" v-model.number="overheadCosts" placeholder="Enter amount">
+                </div>
             </div>
             <hr>
             <div>
@@ -602,7 +648,7 @@
     </script>
 
     <script type="module">
-        import { initializeConfigurator } from './configurator-logic.js';
+        import { initializeConfigurator } from './sc-logic.js';
 
         initializeConfigurator({
             productName: 'Shower Commode',
@@ -613,4 +659,4 @@
     </script>
 
 </body>
-</html>
+</html>  

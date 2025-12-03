@@ -12,8 +12,9 @@ export function initializeConfigurator(config) {
         template: '#order-form-template',
         data() {
             return {
+                settingsStorageKey: `configuratorSettings_${productName}`,
                 activeTab: 'configuration',
-                tableHeaders: [],
+                internalTableHeaders: [],
                 tableData: [],
                 isLoading: true,
                 error: null,
@@ -23,9 +24,9 @@ export function initializeConfigurator(config) {
                 extraTallCheckbox: null, // Will hold the PNG50377 control object if it's visible
                 hoveredControlId: null,
                 isSpecialOrder: false,
-                selectedTableHeaders: [],
+                selectedTableHeaders: [], // This will be loaded from settings
                 isColumnDropdownOpen: false,
-                selectedPriceHeaders: priceFields,
+                internalSelectedPriceHeaders: priceFields,
                 isPriceColumnDropdownOpen: false,
                 dragData: {
                     draggedIndex: null,
@@ -38,10 +39,24 @@ export function initializeConfigurator(config) {
                 itemListBaseFilter: '',
                 orderTimestamp: null,
                 userIpAddress: null,
+                overheadCosts: 0,
+                showCosts: false,
+                baseDiscount: 0,
+                secondaryDiscount: 0,
+                secondaryDiscountSource: '',
+                secondaryDiscountName: '',
+                savedDiscountProfiles: [],
+                profileToManageId: '', // For the new management dropdown
+                marginDisplayState: {}, // To track display mode for each header ('percentage' or 'amount')
             };
         },
         computed: {
             // Use the first price field as the default for single-price display
+            tableHeaders() {
+                if (!this.internalTableHeaders || !this.internalTableHeaders.length) return [];
+                // Exclude 'Cost' from the general-purpose table header list.
+                return this.internalTableHeaders.filter(h => h.toLowerCase() !== 'cost');
+            },
             priceField() { return priceFields[0] },
             baseProducts() {
                 if (this.isLoading) return [];
@@ -95,71 +110,228 @@ export function initializeConfigurator(config) {
                 return this.finalConfigurationItems.some(item => item.DESCRIPTION.includes('Hygienic'));
             },
             priceColumnHeaders() {
-                if (!this.tableHeaders.length) return [];
+                if (!this.internalTableHeaders.length) return [];
                 const headersToExclude = ['id'];
-                // Ensure tableHeaders is an array before filtering
-                return (Array.isArray(this.tableHeaders) ? this.tableHeaders : []).filter(header => {
+                
+                // Start with the price-like columns from the original data.
+                const basePriceHeaders = (Array.isArray(this.internalTableHeaders) ? this.internalTableHeaders : []).filter(header => {
                     if (headersToExclude.includes(header.toLowerCase())) return false;
+                    if (header.toLowerCase() === 'cost') return this.showCosts;
                     if (header.toLowerCase().includes('msrp')) return true;
-                    return this.tableData.every(row => {
+                    return this.tableData.some(row => row[header]) && this.tableData.every(row => {
                         const value = row[header];
                         return value === null || value === undefined || String(value).trim() === '' || !isNaN(Number(value));
                     });
                 });
+
+                // Add the names of saved discount profiles to the list of available columns.
+                const discountProfileNames = this.savedDiscountProfiles.map(p => p.discountName);
+                
+                return [...new Set([...basePriceHeaders, ...discountProfileNames])]; // Use a Set to prevent duplicates.
+            },
+            selectedPriceHeaders: {
+                get() {
+                    const availableHeaders = new Set(this.priceColumnHeaders);
+                    // Ensure loaded headers from settings are valid before returning
+                    const validHeaders = this.internalSelectedPriceHeaders.filter(h => availableHeaders.has(h));
+                    if (validHeaders.length === 0 && availableHeaders.size > 0) {
+                        return priceFields; // Fallback to default if saved headers are invalid/empty
+                    }
+                    return validHeaders;
+                },
+                set(newValue) {
+                    this.internalSelectedPriceHeaders = newValue;
+                }
             },
             conditionalControls() {
                 if (!this.selectedBase) {
                     return [];
                 }
-
-                const baseCode = this.selectedBase.Base;
-                // Filter rows relevant to the selected base or global options
-                const relevantRows = this.tableData.filter(row =>
-                    (row.Section !== baseSection) && // Exclude other base items
-                    ((row.Base && row.Base.split(',').map(b => b.trim()).includes(baseCode)) || !row.Base) // Match base code or be global
-                );
-
-                // Helper to check if an item's requirements are met by current selections
-                const isRequirementMet = (row) => {
-                    if (!row.Requires) return true; // No requirements to meet
-                    
-                    // Get a set of all currently selected ITEM values for efficient lookup.
-                    const currentSelections = new Set(this.finalConfigurationItems.map(item => item.ITEM));
-                    // Check if at least ONE of the required items is in the current selections (OR logic).
-                    return row.Requires.split(',').map(req => req.trim()).some(req => currentSelections.has(req));
-                };
-
+        
+                const baseItemCode = this.selectedBase.ITEM;
+        
+                // 1. Filter for relevant rows.
+                // A row is relevant if its 'Base' column is empty (global) or contains the selected base's ITEM code.
+                const relevantRows = this.tableData.filter(row => {
+                    if (row.Section === baseSection || !row.CntlGrp) return false; // Exclude base frames and items that can't be controls.
+                    return !row.Base || row.Base.split(',').map(b => b.trim()).includes(baseItemCode);
+                });
+        
                 const controls = [];
                 const processedGroups = new Set();
-
-                // Process all controls in a single pass to maintain their natural order
+        
+                // 2. Build control objects from the relevant rows.
                 for (const row of relevantRows) {
-                    if (!row.CntlGrp) continue; // Each control must have a CntlGrp to be rendered
-                    
-                    // Use a composite key to allow a CntlGrp to have multiple control types (e.g., a DD and a CB)
-                    const groupKey = row.CntlGrp + '_' + (row.Control === 'DDR' || row.Control === 'DD' ? 'DropDown' : 'Checkbox');
+                    const isDropdown = row.Control === 'DDR' || row.Control === 'DD';
+                    const groupKey = isDropdown ? row.CntlGrp : row.ID;
+        
                     if (processedGroups.has(groupKey)) continue;
-
-                    // Handle Dropdowns
+        
                     if (row.Control === 'DDR' || row.Control === 'DD') {
-                        const options = relevantRows.filter(o => o.CntlGrp === row.CntlGrp && (o.Control === 'DDR' || o.Control === 'DD') && isRequirementMet(o));
+                        const options = relevantRows.filter(o => o.CntlGrp === row.CntlGrp && (o.Control === 'DDR' || o.Control === 'DD'));
+
+                        // A group is considered 'required' (DDR) if at least one of its options is DDR.
+                        const isRequired = options.some(o => o.Control === 'DDR');
+
                         if (options.length > 0) {
-                            controls.push({ id: row.CntlGrp, label: row.CntlGrp, controlType: row.Control, options: options, section: row.CntlGrp });
-                            processedGroups.add(groupKey);
+                            controls.push({ id: row.CntlGrp, label: row.CntlGrp, controlType: isRequired ? 'DDR' : 'DD', options: options, section: row.CntlGrp });
+                            processedGroups.add(row.CntlGrp);
                         }
-                    // Handle Checkboxes
                     } else if (row.Control === 'CB' || row.Control === 'CBR') {
-                        if (isRequirementMet(row)) {
-                            controls.push({ id: row.ID, label: row.ITEM ? `${row.ITEM} - ${row.DESCRIPTION}` : row.DESCRIPTION, controlType: row.Control, price: row.price, notes: row.Notes, link: row.Link, section: row.CntlGrp });
-                            processedGroups.add(groupKey);
-                        }
+                        // Checkboxes become individual controls.
+                        controls.push({ id: row.ID, label: row.ITEM ? `${row.ITEM} - ${row.DESCRIPTION}` : row.DESCRIPTION, controlType: row.Control, price: row.price, notes: row.Notes, link: row.Link, section: row.CntlGrp });
+                        processedGroups.add(row.ID);
                     }
                 }
-
                 return controls;
             },
         },
         methods: {
+            saveSettings() {
+                const settings = {
+                    isSpecialOrder: this.isSpecialOrder,
+                    selectedTableHeaders: this.selectedTableHeaders,
+                    internalSelectedPriceHeaders: this.internalSelectedPriceHeaders,
+                    baseDiscount: this.baseDiscount,
+                    secondaryDiscount: this.secondaryDiscount,
+                    secondaryDiscountSource: this.secondaryDiscountSource,
+                    secondaryDiscountName: this.secondaryDiscountName,
+                    showCosts: this.showCosts,
+                    overheadCosts: this.overheadCosts,
+                };
+                localStorage.setItem(this.settingsStorageKey, JSON.stringify(settings));
+            },
+            loadSettings() {
+                const savedSettings = localStorage.getItem(this.settingsStorageKey);
+                if (savedSettings) {
+                    const settings = JSON.parse(savedSettings);
+                    this.isSpecialOrder = settings.isSpecialOrder ?? false;
+                    this.selectedTableHeaders = Array.isArray(settings.selectedTableHeaders) ? settings.selectedTableHeaders : this.internalTableHeaders;
+                    this.internalSelectedPriceHeaders = Array.isArray(settings.internalSelectedPriceHeaders) ? settings.internalSelectedPriceHeaders : priceFields;
+                    this.baseDiscount = settings.baseDiscount ?? 0;
+                    this.secondaryDiscount = settings.secondaryDiscount ?? 0;
+                    this.secondaryDiscountSource = settings.secondaryDiscountSource ?? '';
+                    this.showCosts = settings.showCosts ?? false;
+                    this.overheadCosts = settings.overheadCosts ?? 0;
+                }
+            },
+            async createDiscountColumn() {
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    alert("Please log in to create a discount profile.");
+                    return;
+                }
+
+                if (!this.secondaryDiscountName.trim()) {
+                    alert("Please enter a name for the new discount column.");
+                    return;
+                }
+                if (!this.secondaryDiscountSource) {
+                    alert("Please select a source price column for the discount.");
+                    return;
+                }
+            
+                const newColumnName = this.secondaryDiscountName.trim();
+            
+                const discountProfile = {
+                    ownerId: user.uid,
+                    companyId: this.currentUserDoc?.companyId || '',
+                    productName: productName,
+                    discountName: newColumnName,
+                    baseDiscount: this.baseDiscount || 0,
+                    secondaryDiscount: this.secondaryDiscount || 0,
+                    sourceColumn: this.secondaryDiscountSource,
+                    createdAt: new Date(),
+                };
+            
+                try {
+                    // We can add logic here to check for duplicates for this user if needed.
+                    // For now, we will allow multiple profiles with the same name.
+                    await db.collection("discount_profiles").add(discountProfile);
+                    alert(`Discount profile "${newColumnName}" has been saved successfully!`);
+                    await this.fetchDiscountProfiles(); // Refresh the list of profiles
+                } catch (error) {
+                    console.error("Error fetching discount profiles:", error);
+                    alert("Could not fetch your saved discount profiles. A required database index might be missing.");
+                }
+            },
+            async renameDiscountProfile() {
+                if (!this.profileToManageId) {
+                    alert("Please select a profile to rename.");
+                    return;
+                }
+                const profile = this.savedDiscountProfiles.find(p => p.id === this.profileToManageId);
+                if (!profile) return;
+
+                const newName = prompt(`Enter a new name for "${profile.discountName}":`, profile.discountName);
+
+                if (newName && newName.trim() !== '' && newName !== profile.discountName) {
+                    try {
+                        await db.collection("discount_profiles").doc(this.profileToManageId).update({ discountName: newName.trim() });
+                        alert("Profile renamed successfully.");
+                        // Update the name in the selected headers if it's currently displayed
+                        const headerIndex = this.internalSelectedPriceHeaders.indexOf(profile.discountName);
+                        if (headerIndex > -1) {
+                            this.internalSelectedPriceHeaders.splice(headerIndex, 1, newName.trim());
+                        }
+                        await this.fetchDiscountProfiles();
+                    } catch (error) {
+                        console.error("Error renaming profile:", error);
+                        alert("Failed to rename profile.");
+                    }
+                }
+            },
+            async deleteDiscountProfile() {
+                if (!this.profileToManageId) {
+                    alert("Please select a profile to delete.");
+                    return;
+                }
+                const profile = this.savedDiscountProfiles.find(p => p.id === this.profileToManageId);
+                if (!profile || !confirm(`Are you sure you want to delete the "${profile.discountName}" profile? This cannot be undone.`)) return;
+
+                await db.collection("discount_profiles").doc(this.profileToManageId).delete();
+                alert("Profile deleted successfully.");
+                this.internalSelectedPriceHeaders = this.internalSelectedPriceHeaders.filter(h => h !== profile.discountName);
+                this.profileToManageId = ''; // Reset selection
+                await this.fetchDiscountProfiles();
+            },
+            applyDiscountProfile() {
+                if (!this.selectedDiscountProfileId) return;
+
+                const profile = this.savedDiscountProfiles.find(p => p.id === this.selectedDiscountProfileId);
+                if (!profile) {
+                    alert("Selected discount profile not found.");
+                    return;
+                }
+
+                const newColumnName = profile.discountName;
+                const baseDiscountRate = 1 - ((profile.baseDiscount || 0) / 100);
+                const secondaryDiscountRate = 1 - ((profile.secondaryDiscount || 0) / 100);
+
+                this.tableData.forEach(row => {
+                    const sourcePrice = parseFloat(row[profile.sourceColumn]) || 0;
+                    row[newColumnName] = (sourcePrice * baseDiscountRate * secondaryDiscountRate).toFixed(2);
+                });
+                this.internalSelectedPriceHeaders.push(newColumnName);
+            },
+            applyDefaults() {
+                if (!this.selectedBase) return;
+
+                // This logic is moved from the watcher to be called explicitly.
+                // It ensures that defaults are applied only when the new base is set.
+                const baseCode = this.selectedBase.ITEM;
+                const relevantRows = this.tableData.filter(row => !row.Base || row.Base.split(',').map(b => b.trim()).includes(baseCode));
+        
+                for (const row of relevantRows) {
+                    if (!row.Notes || !row.Notes.includes('Default')) continue;
+        
+                    if (row.Control === 'DDR' || row.Control === 'DD') {
+                        this.formSelections[row.CntlGrp] = row.ID;
+                    } else if (row.Control === 'CB' || row.Control === 'CBR') { // CBR is a required checkbox
+                        this.formSelections[row.ID] = true;
+                    }
+                }
+            },
             getColumnClass(header) {
                 switch (header) {
                     case 'DESCRIPTION': return 'col-wide';
@@ -187,9 +359,8 @@ export function initializeConfigurator(config) {
                     if (doc.exists) {
                         const productData = doc.data().items;
                         if (productData && productData.length > 0) {
-                            this.tableHeaders = Object.keys(productData[0]);
+                            this.internalTableHeaders = Object.keys(productData[0]) || [];
                             this.tableData = productData;
-                            this.selectedTableHeaders = this.tableHeaders; // Default to showing all columns
                         } else { throw new Error("Product data is empty."); }
                     } else { throw new Error(`No product data found for '${firestoreDocId}' in the database.`); }
                 } catch (error) {
@@ -378,8 +549,31 @@ export function initializeConfigurator(config) {
             },
             getHeaderTotal(header) {
                 // Gracefully handle if this method is called on a page without multi-price support
-                if (!this.finalConfigurationItems) return 0;
-                return this.finalConfigurationItems.reduce((total, item) => total + (parseFloat(item[header]) || 0), 0);
+                if (!this.finalConfigurationItems) return '0.00';
+
+                let total = this.finalConfigurationItems.reduce((sum, item) => sum + (parseFloat(item[header]) || 0), 0);
+
+                // If the column is 'Cost', add the overhead costs.
+                if (header.toLowerCase() === 'cost') {
+                    total += parseFloat(this.overheadCosts) || 0;
+                }
+
+                return total.toFixed(2);
+            },
+            getMargin(header) {
+                const costTotal = parseFloat(this.getHeaderTotal('Cost')) || 0;
+                const columnTotal = parseFloat(this.getHeaderTotal(header)) || 0;
+                const margin = columnTotal - costTotal;
+                return margin.toFixed(2);
+            },
+            getMarginPercentage(header) {
+                const marginValue = parseFloat(this.getMargin(header)) || 0;
+                const columnTotal = parseFloat(this.getHeaderTotal(header)) || 0;
+                if (columnTotal === 0) {
+                    return '0.00%';
+                }
+                const marginPercentage = (marginValue / columnTotal) * 100;
+                return marginPercentage.toFixed(2) + '%';
             },
             getCheckboxPrice(control, header) {
                 // Gracefully handle if this method is called on a page without multi-price support
@@ -397,21 +591,30 @@ export function initializeConfigurator(config) {
                 }
                 return false;
             },
-            getMargin(header) {
-                if (header.toLowerCase().includes('cost')) {
-                    return 0; // Margin doesn't apply to cost columns directly
+            toggleMarginDisplay(header) {
+                if (this.marginDisplayState[header] === 'percentage') {
+                    this.marginDisplayState[header] = 'amount';
+                } else {
+                    this.marginDisplayState[header] = 'percentage';
                 }
-                const totalCost = this.getHeaderTotal('Cost');
-                const totalHeaderPrice = this.getHeaderTotal(header);
-                if (totalHeaderPrice === 0) return '0.00%';
-                const marginValue = totalHeaderPrice - totalCost;
-                const marginPercentage = (marginValue / totalHeaderPrice) * 100;
-                return `${marginPercentage.toFixed(2)}%`;
             },
         },
         watch: {
             selectedBaseId(newBaseId) {
-                // Use configured special IDs for product-specific rules
+                // When the base product changes, we must clear all previous selections
+                // to prevent rules from being evaluated against a stale configuration.
+                // This is a "hard reset" of the options whenever the base changes.
+                const wasDefaultsChecked = this.selectDefaults;
+                if (wasDefaultsChecked) {
+                    this.selectDefaults = false;
+                }
+
+                this.formSelections = {};
+
+                // If defaults were on, re-check the box. The `selectDefaults` watcher will handle applying them.
+                if (wasDefaultsChecked) {
+                    this.$nextTick(() => { this.selectDefaults = true; });
+                }
                 if (specialControlIds.extraTall && specialControlIds.extraTallBase) {
                     if (newBaseId === specialControlIds.extraTallBase) {
                         this.formSelections[specialControlIds.extraTall] = true;
@@ -439,24 +642,14 @@ export function initializeConfigurator(config) {
                 deep: true
             },
             selectDefaults(isDefaultsSelected) {
+                this.saveSettings();
+                // When the checkbox is checked, clear any existing selections and apply the defaults.
+                // When unchecked, we do nothing, leaving the user's selections as they are.
+                // A full reset can be done with the "Clear" button.
                 if (isDefaultsSelected) {
-                    // Iterate through the entire tableData to find all possible default options,
-                    // regardless of whether they are currently visible. This decouples the default
-                    // logic from the conditional rendering logic.
-                    const baseCode = this.selectedBase.Base;
-                    const relevantRows = this.tableData.filter(row => (row.Base && row.Base.includes(baseCode)) || !row.Base);
- 
-                    for (const row of relevantRows) {
-                        if (!row.Notes || !row.Notes.includes('Default')) continue;
-
-                        if (row.Control === 'DDR' || row.Control === 'DD') {
-                            this.formSelections[row.CntlGrp] = row.ID;
-                        } else if (row.Control === 'CB') {
-                            // For checkboxes, set their individual selection.
-                            this.formSelections[row.ID] = true;
-                        }
-                    }
-                }
+                    this.formSelections = {}; // Clear previous non-default selections
+                    this.applyDefaults();
+                } 
             },
             conditionalControls(newControls) {
                 // When controls are added, ensure required dropdowns (DDR) have their
@@ -466,7 +659,21 @@ export function initializeConfigurator(config) {
                         this.formSelections[control.id] = '';
                     }
                 }
-            }
+            },
+            // Watcher for all settings properties to persist them
+            isSpecialOrder() { this.saveSettings(); },
+            selectedTableHeaders: {
+                handler() { this.saveSettings(); },
+                deep: true
+            },
+            internalSelectedPriceHeaders: {
+                handler() { this.saveSettings(); },
+                deep: true
+            },
+            baseDiscount() { this.saveSettings(); },
+            secondaryDiscount() { this.saveSettings(); },
+            showCosts() { this.saveSettings(); },
+            overheadCosts() { this.saveSettings(); },
         },
         created() {
             this.handleClickOutside = (event) => {
@@ -480,16 +687,33 @@ export function initializeConfigurator(config) {
                     this.isPriceColumnDropdownOpen = false;
                 }
             };
+
             this.setOrderDetails();
+            this.loadSettings(); // Load settings before fetching data
             this.fetchProductData();
             firebase.auth().onAuthStateChanged(user => {
                 this.currentUser = user;
                 this.isLoggedIn = !!this.currentUser;
                 if (this.isLoggedIn) {
                     this.fetchSavedBuilds();
+                    this.fetchDiscountProfiles();
                     this.fetchCurrentUserData(user);
                 }
             });
+
+            // Initialize margin display state after settings are loaded
+            this.internalSelectedPriceHeaders.forEach(header => {
+                this.marginDisplayState[header] = 'percentage'; // Default to percentage
+            });
+        },
+        watch: {
+            selectedPriceHeaders(newHeaders, oldHeaders) {
+                newHeaders.forEach(header => {
+                    if (!this.marginDisplayState[header]) {
+                        this.marginDisplayState[header] = 'percentage';
+                    }
+                });
+            }
         },
     }).mount('#order-form-container');
 }

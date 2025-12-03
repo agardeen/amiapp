@@ -86,23 +86,11 @@
             display: flex;
             flex-direction: column;
             height: 500px; /* Example height, adjust as needed */
-        }
-        .tab-content-config select {
-            max-width: 75%;
-        }
-        .tab-content-config select, .tab-content-config label {
-            font-size: 0.85rem; /* Reduce form control text size by 15% */
-        }
-        /* Override for the Frame Color dropdown to allow it to be full width */
-        .tab-content-config select[id="Frame Color"] {
-            max-width: none;
+            overflow-y: auto;
+            padding-right: 1rem; /* Add padding to the right to account for the scrollbar */
         }
         .form-group {
             margin-bottom: 0.6rem; /* Reduced vertical spacing by 60% */
-        }
-        .bottom-section {
-            overflow-y: auto;
-            flex-grow: 1;
         }
         .price-column {
             display: flex; flex-direction: column; align-items: flex-end; gap: 0;
@@ -111,13 +99,22 @@
             /* Add padding to the right to account for the scrollbar in the bottom section */
             padding-right: 17px; 
         }
-        .clear-button {
-            padding: 2px 3px;
+        .actions-bar {
+            display: flex;
+            justify-content: space-around; /* Distribute buttons evenly */
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem; /* Space below the bar */
         }
         .submit-button {
             background-color: green;
             color: white;
             border-color: darkgreen;
+        }
+        .form-row-bottom {
+            display: flex;
+            align-items: center; /* Vertically center items in the row */
+            gap: 1rem;
         }
         .invalid-submit {
             background-color: #ffcccc; /* Pale red */
@@ -128,6 +125,12 @@
             justify-content: space-between;
             align-items: left;
             gap: 1rem;
+        }
+        .price-columns-container {
+            display: flex;
+            gap: 0.5rem; /* Match the gap from the total price display */
+            align-items: center;
+            justify-content: flex-end; /* Align prices to the right */
         }
         .price-display {
             text-align: right;
@@ -248,8 +251,27 @@
         <div v-show="activeTab === 'configuration'" class="tab-content-config">
             <div v-if="isLoading" class="loading">Loading Build...</div>
             <form v-else-if="!error" style="display: flex; flex-direction: column; height: 100%;">
-                <!-- TOP (FIXED) SECTION -->
-                <div class="top-section">
+                <!-- Combined Section -->
+                    <!-- Buttons and Defaults Section -->
+                    <div v-if="selectedBase" class="actions-bar">
+                        <label>
+                            <input type="checkbox" v-model="selectDefaults"> Select Defaults
+                        </label>
+                        <button @click.prevent="clearConfiguration" type="button" class="clear-button">
+                            Clear
+                        </button>
+                        <button @click.prevent="saveConfiguration" type="button" class="clear-button" title="Login required">
+                            Save
+                        </button>
+                        <button @click.prevent="loadConfiguration" type="button" class="clear-button" title="Login required">
+                            Load
+                        </button>
+                        <button @click.prevent="submitConfiguration" type="button" class="clear-button submit-button" :class="{ 'invalid-submit': isFormInvalid }">
+                            Submit
+                        </button>
+                    </div>
+
+                    <!-- Base Product Selection -->
                     <div class="form-group">
                         <div class="form-row" @mouseenter="hoveredControlId = 'base-product'" @mouseleave="hoveredControlId = null">
                             <select id="base-product" v-model="selectedBaseId" required >
@@ -286,48 +308,9 @@
                             <img v-if="getHoveredItem({ id: 'base-product' }).Link" :src="getHoveredItem({ id: 'base-product' }).Link" class="notes-image" alt="Note Image">
                         </div>
                     </div>
-                    <!-- Explicitly render Frame Color control if it exists -->
-                    <div v-if="frameColorControl" class="form-group">
-                        <div class="form-row">
-                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                <!-- Required Dropdown (DDR) -->
-                                <select :id="frameColorControl.id" v-model="formSelections[frameColorControl.id]" required @mouseenter="hoveredControlId = frameColorControl.id" @mouseleave="hoveredControlId = null">
-                                    <option disabled value="">{{ frameColorControl.label }}</option>
-                                    <option v-for="option in frameColorControl.options" :key="option.ID" :value="option.ID">
-                                        {{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span>
-                                    </option>
-                                </select>
-                                <label>
-                                    <input type="checkbox" v-model="selectFrameColorDefaults"> Select Defaults
-                                </label>
-                                <button @click.prevent="clearConfiguration" type="button" class="clear-button">
-                                    Clear
-                                </button>
-                                <button @click.prevent="saveConfiguration" type="button" class="clear-button">
-                                    Save
-                                </button>
-                                <button @click.prevent="loadConfiguration" type="button" class="clear-button">
-                                    Load
-                                </button>
-                                <button @click.prevent="submitConfiguration" type="button" class="clear-button submit-button" :class="{ 'invalid-submit': isFormInvalid }">
-                                    Submit
-                                </button>
-                            </div>
-                        </div>
-                        <div v-if="hoveredControlId === frameColorControl.id && getHoveredItem(frameColorControl) && (getHoveredItem(frameColorControl).Notes || getHoveredItem(frameColorControl).Link)" class="notes-display">
-                            <div v-if="getHoveredItem(frameColorControl).Notes" class="notes-text">
-                                {{ getHoveredItem(frameColorControl).Notes }}
-                            </div>
-                            <img v-if="getHoveredItem(frameColorControl).Link" :src="getHoveredItem(frameColorControl).Link" class="notes-image" alt="Note Image">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- BOTTOM (SCROLLABLE) SECTION -->
-                <div class="bottom-section">
                     <!-- Dynamically Rendered Conditional Controls -->
-                    <div v-if="selectedBase">
-                        <div v-for="control in otherConditionalControls" :key="control.id" class="form-group">
+                    <div v-if="selectedBase" >
+                        <div v-for="control in conditionalControls" :key="control.id" class="form-group">
                             <div class="form-row-bottom">
                                 <!-- Left Side: Control -->
                                 <div style="flex-grow: 1;">
@@ -336,7 +319,7 @@
                                         <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span></option>
                                     </select>
                                     <select v-if="control.controlType === 'DD'" :id="control.id" v-model="formSelections[control.id]" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" :required="control.section === 'Pattern' && isPatternRequired" style="width: 100%;">
-                                        <option value="">No {{ control.section }}</option>
+                                        <option :value="undefined">{{ control.label }}</option>
                                         <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span></option>
                                     </select>
                                     <label v-if="control.controlType === 'CB'" :for="control.id" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
@@ -360,7 +343,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
             </form>
             <div v-else class="error">{{ error }}</div>
         </div>
@@ -546,424 +528,50 @@
             </div>
              <hr>
              <div>
+                 <h4>Build</h4>
+                 <!-- Settings for the Build tab will go here -->
+                 <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
+                     <label>Select Price Columns to Display:</label>
+                     <div class="custom-multiselect" ref="priceColumnSelector">
+                         <div class="multiselect-display" @click="togglePriceColumnDropdown">
+                             <div v-if="selectedPriceHeaders.length === 0" style="padding: 5px 0;">Select Price Columns</div>
+                             <div v-else class="selected-items-container">
+                                 <span v-for="(header, index) in selectedPriceHeaders"
+                                       :key="header"
+                                       class="selected-item-tag"
+                                       draggable="true"
+                                       @dragstart="dragStart(index, $event)"
+                                       @dragover.prevent="dragOver(index, $event)"
+                                       @dragleave="dragLeave($event)"
+                                       @drop="onDrop(index, $event)">
+                                     {{ header }}
+                                 </span>
+                             </div>
+                         </div>
+                         <div class="multiselect-options" v-if="isPriceColumnDropdownOpen">
+                             <label v-for="header in priceColumnHeaders" :key="header" style="display: block; padding: 5px 10px;">
+                                 <input type="checkbox" :value="header" v-model="selectedPriceHeaders"> {{ header }}
+                             </label>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+             <hr>
+             <div>
                  <h4>Summary</h4>
                  <!-- Settings for the Summary tab will go here -->
              </div>
         </div>
     </script>
 
-    <script>
-        // VUE APPLICATION LOGIC
-        Vue.createApp({
-            // The template is now referenced from the script block above
-            template: '#order-form-template',
-            
-            data() {
-                return {
-                    activeTab: 'configuration',
-                    tableHeaders: [],
-                    tableData: [],
-                    isLoading: true,
-                    error: null,
-                    selectedBaseId: '',
-                    formSelections: {}, // To store selections for dynamic controls
-                    selectFrameColorDefaults: false, // For the new checkbox
-                    hoveredControlId: null, // To track which control is being hovered over
-                    isSpecialOrder: false,
-                    selectedTableHeaders: [],
-                    isColumnDropdownOpen: false,
-                    isLoggedIn: false,
-                    savedBuilds: [],
-                };
-            },
-            
-            computed: {
-                baseProducts() {
-                    if (this.isLoading) return [];
-                    return this.tableData.filter(p => p.Section === 'Base');
-                },
-                selectedBase() {
-                    if (!this.selectedBaseId) return null;
-                    return this.tableData.find(p => p.ID === this.selectedBaseId);
-                },
-                selectedOptions() {
-                    const selections = {};
-                    for (const section in this.formSelections) {
-                        const selectedId = this.formSelections[section];
-                        if (selectedId) {
-                            const selectedObject = this.tableData.find(p => p.ID === selectedId);
-                            if (selectedObject) {
-                                selections[section] = selectedObject;
-                            }
-                        }
-                    }
-                    return selections;
-                },
-                finalConfigurationItems() {
-                    const items = [];
+    <script type="module">
+        import { initializeConfigurator } from './configurator-logic.js';
 
-                    // 1. Add the selected base product
-                    if (this.selectedBase) {
-                        items.push(this.selectedBase);
-                    }
-
-                    // 2. Add all other selected options
-                    for (const key in this.formSelections) {
-                        const value = this.formSelections[key];
-                        if (!value) continue; // Skip empty strings or false values
-
-                        let selectedItem = null;
-                        if (typeof value === 'string') { // It's a dropdown selection (ID)
-                            selectedItem = this.tableData.find(p => p.ID === value);
-                        } else if (value === true) { // It's a checkbox selection
-                            selectedItem = this.tableData.find(p => p.ID === key);
-                        }
-
-                        if (selectedItem) {
-                            items.push(selectedItem);
-                        }
-                    }
-                    return items;
-                },
-                totalPrice() {
-                    return this.finalConfigurationItems.reduce((total, item) => total + (parseFloat(item['MSRP 25']) || 0), 0);
-                },
-                isFormInvalid() {
-                    // 1. Check if a base is selected
-                    if (!this.selectedBaseId) return true;
-
-                    // 2. Check all visible required dropdowns
-                    for (const control of this.conditionalControls) {
-                        if (control.controlType === 'DDR' && !this.formSelections[control.id]) {
-                            return true; // Found an unselected required dropdown
-                        }
-                    }
-
-                    // 3. Check if Pattern is required and unselected
-                    if (this.isPatternRequired && !this.formSelections['Pattern']) {
-                        return true;
-                    }
-                    return false;
-                },
-                isPatternRequired() {
-                    return this.finalConfigurationItems.some(item => item.DESCRIPTION.includes('Hygienic'));
-                },
-                frameColorControl() {
-                    return this.conditionalControls.find(c => c.id === 'Frame Color');
-                },
-                otherConditionalControls() {
-                    return this.conditionalControls.filter(c => c.section !== 'Frame Color');
-                },
-                conditionalControls() {
-                    if (!this.selectedBase) return [];
-
-                    // Get a Set of all currently selected ITEM codes for efficient lookup.
-                    const selectedItemCodes = new Set(this.finalConfigurationItems.map(item => item.ITEM));
-
-                    const baseCode = this.selectedBase.Base;
-                    const relevantRows = this.tableData.filter(row => {
-                        return row.Section !== 'Base' && row.Base && row.Base.includes(baseCode);
-                    });
-
-                    // This is the new filter function. An item is valid if:
-                    // 1. It has no 'Requires' value.
-                    // 2. OR, at least one of its required items has been selected.
-                    // 3. OR, it is a Checkbox (CB), which should always be shown if its base is correct.
-                    const isRequirementMet = (row) => {
-                        if (!row.Requires) return true;
-                        // For checkboxes, we want them to be visible regardless of the 'Requires' column,
-                        // as their dependencies will be handled by the watcher.
-                        if (row.Control === 'CB') return true;
-                        return row.Requires.split(',').some(req => selectedItemCodes.has(req.trim()));
-                    };
-
-                    const finalControls = [];
-                    const processedSections = new Set();
-
-                    for (const row of relevantRows) {
-                        if (row.Control === 'CB' && isRequirementMet(row)) {
-                            finalControls.push({
-                                id: row.ID,
-                                section: row.Section,
-                                label: `${row.ITEM} - ${row.DESCRIPTION}`,
-                                controlType: 'CB',
-                                price: row['MSRP 25']
-                            });
-                        } else if ((row.Control === 'DDR' || row.Control === 'DD')) {
-                            if (processedSections.has(row.Section)) continue;
-
-                            // Filter the options for this dropdown using the same 'Requires' logic.
-                            const availableOptions = relevantRows.filter(r => r.Section === row.Section && (r.Control === 'DDR' || r.Control === 'DD') && isRequirementMet(r));
-
-                            // Only show the dropdown if there are valid options to choose from.
-                            if (availableOptions.length > 0) {
-                                finalControls.push({
-                                    id: row.Section, // Group by section name
-                                    section: row.Section,
-                                    label: relevantRows.find(r => r.Section === row.Section && r.Control === 'Lable')?.DESCRIPTION || row.Section,
-                                    options: availableOptions,
-                                    controlType: row.Control
-                                });
-                                processedSections.add(row.Section);
-                            }
-                        }
-                    }
-                    return finalControls;
-                },
-            },
-            
-            methods: {
-                getColumnClass(header) {
-                    switch (header) {
-                        case 'DESCRIPTION': return 'col-wide';
-                        case 'ID':
-                        case 'Control':
-                        case 'Base':
-                        case 'ITEM': return 'col-narrow';
-                        default: return '';
-                    }
-                },
-                async fetchProductData() {
-                    this.isLoading = true;
-                    this.error = null;
-                    try {
-                        const docRef = db.collection("product_data").doc("zing2");
-                        const doc = await docRef.get();
-
-                        if (doc.exists) {
-                            const productData = doc.data().items;
-                            if (productData && productData.length > 0) {
-                                this.tableHeaders = Object.keys(productData[0]);
-                                this.tableData = productData;
-                                this.selectedTableHeaders = ['ID', 'ITEM', 'DESCRIPTION', 'MSRP 25'];
-                            } else {
-                                throw new Error("Product data is empty.");
-                            }
-                        } else {
-                            throw new Error("No product data found for 'zing2' in the database.");
-                        }
-                        this.isLoading = false;
-                    } catch (error) {
-                        this.error = `Failed to load product data. Details: ${error.message}`;
-                        this.isLoading = false;
-                    }
-                },
-                clearConfiguration() {
-                    this.selectedBaseId = '';
-                    this.formSelections = {};
-                    this.selectFrameColorDefaults = false;
-                },
-                async saveConfiguration() {
-                    const user = firebase.auth().currentUser;
-                    if (!user) {
-                        alert("Please log in to save your configuration.");
-                        window.location.href = `login.html?redirect=${window.location.pathname.split('/').pop()}`;
-                        return;
-                    }
-
-                    const buildName = prompt("Please enter a name for this build:", "My Zing 2 Build") || `Zing 2 Build ${new Date().toLocaleString()}`;
-                    if (!buildName) return;
-
-                    const configToSave = {
-                        ownerId: user.uid,
-                        productName: "Zing Size 2",
-                        configurationName: buildName,
-                        configData: {
-                            selectedBaseId: this.selectedBaseId,
-                            formSelections: this.formSelections,
-                            isSpecialOrder: this.isSpecialOrder
-                        },
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    };
-
-                    try {
-                        await db.collection("configurations").add(configToSave);
-                        alert(`Configuration "${buildName}" saved successfully!`);
-                        this.fetchSavedBuilds();
-                    } catch (error) {
-                        console.error("Error saving configuration: ", error);
-                        alert("There was an error saving your configuration.");
-                    }
-                },
-                toggleColumnDropdown() {
-                    this.isColumnDropdownOpen = !this.isColumnDropdownOpen;
-                },
-                submitConfiguration() {
-                    if (this.isFormInvalid) {
-                        alert('Please complete all required fields.');
-                        return;
-                    }
-                    // If form is valid, switch to the config tab
-                    this.activeTab = 'summary';
-                },
-                isCheckboxDisabled(controlId) {
-                    const item = this.tableData.find(p => p.ID === controlId);
-                    if (!item) return false;
-
-                    // Disable the Dual Control checkbox if its required Push Handle is not available in the current configuration.
-                    if (item.Requires) {
-                        const requiredItemCode = item.Requires.split(',')[0].trim();
-                        const requiredItem = this.tableData.find(p => p.ITEM === requiredItemCode);
-                        if (requiredItem) {
-                            const isRequirementAvailable = this.conditionalControls.some(c => c.id === requiredItem.ID);
-                            if (!isRequirementAvailable) {
-                                return true; // Disable if the required item isn't even an option.
-                            }
-                        }
-                    }
-
-                    // If Dual Control (Z40) is selected, its required Push Handle (Z235) should be disabled.
-                    if (controlId === 'Z235') {
-                        return !!this.formSelections['Z40'];
-                    }
-                    // If Dual Control (Z41) is selected, its required Push Handle (Z236) should be disabled.
-                    if (controlId === 'Z236') {
-                        return !!this.formSelections['Z41'];
-                    }
-                    return false; // Default: not disabled
-                },
-                getHoveredItem(control) {
-                    if (control.id === 'base-product') {
-                        return this.selectedBase;
-                    }
-                    if (control.controlType === 'CB') {
-                        // For checkboxes, return the item if the box is checked
-                        return this.formSelections[control.id] ? this.tableData.find(p => p.ID === control.id) : null;
-                    }
-                    if (control.controlType === 'DDR' || control.controlType === 'DD') {
-                        // For dropdowns, return the selected option object
-                        return this.selectedOptions[control.id];
-                    }
-                    return null;
-                },
-                loadConfiguration() {
-                    const user = firebase.auth().currentUser;
-                    if (!user) {
-                        alert("Please log in to load a configuration.");
-                        window.location.href = `login.html?redirect=${window.location.pathname.split('/').pop()}`;
-                        return;
-                    }
-                    this.activeTab = 'my-builds';
-                },
-                async fetchSavedBuilds() {
-                    const user = firebase.auth().currentUser;
-                    if (!user) return;
-
-                    try {
-                        const snapshot = await db.collection("configurations")
-                            .where("ownerId", "==", user.uid)
-                            .where("productName", "==", "Zing Size 2")
-                            .orderBy("updatedAt", "desc")
-                            .get();
-                        
-                        this.savedBuilds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    } catch (error) {
-                        console.error("Error fetching saved builds: ", error);
-                        alert("Could not fetch your saved builds.");
-                    }
-                },
-                loadSavedConfiguration(build) {
-                    if (!build || !build.configData) return;
-                    this.selectedBaseId = build.configData.selectedBaseId || '';
-                    this.$nextTick(() => {
-                        this.formSelections = build.configData.formSelections || {};
-                        this.isSpecialOrder = build.configData.isSpecialOrder || false;
-                    });
-                    alert(`Configuration "${build.configurationName}" loaded.`);
-                    this.activeTab = 'configuration';
-                },
-                async deleteSavedConfiguration(docId) {
-                    if (!confirm("Are you sure you want to delete this build? This cannot be undone.")) return;
-                    try {
-                        await db.collection("configurations").doc(docId).delete();
-                        alert("Configuration deleted.");
-                        this.fetchSavedBuilds();
-                    } catch (error) {
-                        console.error("Error deleting configuration: ", error);
-                    }
-                },
-                async promptAndRenameBuild(build) {
-                    const newName = prompt("Enter a new name for this build:", build.configurationName);
-                    if (newName && newName !== build.configurationName) {
-                        await db.collection("configurations").doc(build.id).update({ configurationName: newName, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
-                        this.fetchSavedBuilds();
-                    }
-                },
-            },
-            
-            watch: {
-                isColumnDropdownOpen(isOpen) {
-                    if (isOpen) {
-                        // Add a click listener to the document to close the dropdown
-                        document.addEventListener('click', this.handleClickOutside);
-                    } else {
-                        // Remove the listener when the dropdown is closed
-                        document.removeEventListener('click', this.handleClickOutside);
-                    }
-                },
-                activeTab(newTab) {
-                    if (newTab === 'my-builds') {
-                        this.fetchSavedBuilds();
-                    }
-                },
-                formSelections: {
-                    handler(newSelections) {
-                        // Rule: If Dual Control (Z40) is selected, Push Handle (Z235) must be selected.
-                        if (newSelections['Z40']) this.formSelections['Z235'] = true;
-
-                        // Rule: If Dual Control (Z41) is selected, Push Handle (Z236) must be selected.
-                        if (newSelections['Z41']) this.formSelections['Z236'] = true;
-                    },
-                    deep: true // Watch for changes inside the object
-                },
-                selectFrameColorDefaults(isDefaultsSelected) {
-                    if (isDefaultsSelected) {
-                        // Loop through the currently visible conditional controls
-                        for (const control of this.conditionalControls) {
-                            // We only care about required dropdowns (DDR)
-                            if (control.controlType === 'DDR') {
-                                // Find the default option within this control's options
-                                const defaultOption = control.options.find(opt => opt.Notes && opt.Notes.includes('Default'));
-                                
-                                // If a default option is found, select it
-                                if (defaultOption) {
-                                    this.formSelections[control.id] = defaultOption.ID;
-                                }
-                            }
-                        }
-                    }
-                },
-                conditionalControls(newControls) {
-                    // When the available controls change (e.g., after selecting a new base),
-                    // we must initialize their values in formSelections to an empty string.
-                    // This ensures the v-model is valid and the :invalid CSS pseudo-class
-                    // can apply correctly, making the placeholder visible.
-                    for (const control of newControls) {
-                        if ((control.controlType === 'DDR' || control.controlType === 'DD') && this.formSelections[control.id] === undefined) {
-                            this.formSelections[control.id] = ''; // Initialize both DDR and DD controls
-                        }
-                    }
-                }
-            },
-            
-            created() {
-                this.handleClickOutside = (event) => {
-                    // Close the dropdown if the click is outside the multiselect component
-                    if (this.$refs.columnSelector && !this.$refs.columnSelector.contains(event.target)) {
-                        this.isColumnDropdownOpen = false;
-                    }
-                };
-                this.fetchProductData();
-
-                firebase.auth().onAuthStateChanged(user => {
-                    this.isLoggedIn = !!user;
-                    if (this.isLoggedIn) {
-                        this.fetchSavedBuilds();
-                    }
-                });
-            },
-        }).mount('#order-form-container');
+        initializeConfigurator({
+            productName: 'Zing Size 2',
+            firestoreDocId: 'zing2',
+            priceFields: ['MSRP 25'] // Default price field
+        });
     </script>
 
 </body>
