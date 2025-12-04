@@ -27,7 +27,7 @@ export function initializeConfigurator(config) {
                 selectedTableHeaders: [], // This will be loaded from settings
                 isColumnDropdownOpen: false,
                 internalSelectedPriceHeaders: priceFields,
-                isPriceColumnDropdownOpen: false,
+                isPriceScheduleDropdownOpen: false,
                 dragData: {
                     draggedIndex: null,
                     draggedOverIndex: null,
@@ -43,7 +43,11 @@ export function initializeConfigurator(config) {
                 showCosts: false,
                 baseDiscount: 0,
                 secondaryDiscount: 0,
+                markup: 0,
+                fx: 0,
+                currencySymbol: '$',
                 secondaryDiscountSource: '',
+                costBasisSource: 'Cost', // The price schedule to use for cost calculations
                 secondaryDiscountName: '',
                 savedDiscountProfiles: [],
                 profileToManageId: '', // For the new management dropdown
@@ -194,6 +198,10 @@ export function initializeConfigurator(config) {
                     internalSelectedPriceHeaders: this.internalSelectedPriceHeaders,
                     baseDiscount: this.baseDiscount,
                     secondaryDiscount: this.secondaryDiscount,
+                    markup: this.markup,
+                    fx: this.fx,
+                    currencySymbol: this.currencySymbol,
+                    costBasisSource: this.costBasisSource,
                     secondaryDiscountSource: this.secondaryDiscountSource,
                     secondaryDiscountName: this.secondaryDiscountName,
                     showCosts: this.showCosts,
@@ -210,54 +218,116 @@ export function initializeConfigurator(config) {
                     this.internalSelectedPriceHeaders = Array.isArray(settings.internalSelectedPriceHeaders) ? settings.internalSelectedPriceHeaders : priceFields;
                     this.baseDiscount = settings.baseDiscount ?? 0;
                     this.secondaryDiscount = settings.secondaryDiscount ?? 0;
+                    this.markup = settings.markup ?? 0;
+                    this.fx = settings.fx ?? 0;
+                    this.costBasisSource = settings.costBasisSource ?? 'Cost';
+                    this.currencySymbol = settings.currencySymbol ?? '$';
                     this.secondaryDiscountSource = settings.secondaryDiscountSource ?? '';
                     this.showCosts = settings.showCosts ?? false;
                     this.overheadCosts = settings.overheadCosts ?? 0;
                 }
             },
-            async createDiscountColumn() {
+            async fetchDiscountProfiles() {
                 const user = firebase.auth().currentUser;
                 if (!user) {
-                    alert("Please log in to create a discount profile.");
+                    this.savedDiscountProfiles = [];
+                    return;
+                }
+                try {
+                    const snapshot = await db.collection("discount_profiles")
+                        .where("ownerId", "==", user.uid)
+                        .where("productName", "==", productName)
+                        .orderBy("createdAt", "desc")
+                        .get();
+                    
+                    this.savedDiscountProfiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                } catch (error) {
+                    console.error("Error fetching discount profiles:", error);
+                    // This error often indicates a missing Firestore index. The console will have a link to create it.
+                    alert("Could not fetch your saved discount profiles. A required database index might be missing. Check the developer console for a link to create it.");
+                }
+            },
+            async createPriceSchedule() {
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    alert("Please log in to create a Price Schedule.");
                     return;
                 }
 
                 if (!this.secondaryDiscountName.trim()) {
-                    alert("Please enter a name for the new discount column.");
+                    alert("Please enter a Price Schedule Name.");
                     return;
                 }
                 if (!this.secondaryDiscountSource) {
-                    alert("Please select a source price column for the discount.");
+                    alert("Please select a Price Schedule.");
                     return;
                 }
             
                 const newColumnName = this.secondaryDiscountName.trim();
-            
-                const discountProfile = {
-                    ownerId: user.uid,
-                    companyId: this.currentUserDoc?.companyId || '',
-                    productName: productName,
-                    discountName: newColumnName,
-                    baseDiscount: this.baseDiscount || 0,
-                    secondaryDiscount: this.secondaryDiscount || 0,
-                    sourceColumn: this.secondaryDiscountSource,
-                    createdAt: new Date(),
-                };
-            
+                const existingProfile = this.savedDiscountProfiles.find(p => p.discountName === newColumnName);
+
                 try {
-                    // We can add logic here to check for duplicates for this user if needed.
-                    // For now, we will allow multiple profiles with the same name.
-                    await db.collection("discount_profiles").add(discountProfile);
-                    alert(`Discount profile "${newColumnName}" has been saved successfully!`);
+                    if (existingProfile) {
+                        // A profile with this name already exists.
+                        if (confirm(`A Price Schedule named "${newColumnName}" already exists. Do you want to replace it?`)) {
+                            // User chose to REPLACE.
+                            const profileToUpdate = {
+                                baseDiscount: this.baseDiscount || 0,
+                                secondaryDiscount: this.secondaryDiscount || 0,
+                                markup: this.markup || 0,
+                                fx: this.fx || 0,
+                                sourceColumn: this.secondaryDiscountSource,
+                                updatedAt: new Date() // Add an updated timestamp
+                            };
+                            await db.collection("discount_profiles").doc(existingProfile.id).update(profileToUpdate);
+                            alert(`Price Schedule "${newColumnName}" has been updated successfully!`);
+                        } else {
+                            // User chose to RENAME.
+                            alert(`Save cancelled. Please enter a different name for your new Price Schedule.`);
+                            return; // Exit without saving.
+                        }
+                    } else {
+                        // No existing profile, so CREATE a new one.
+                        const newDiscountProfile = {
+                            ownerId: user.uid,
+                            companyId: this.currentUserDoc?.companyId || '',
+                            productName: productName,
+                            discountName: newColumnName,
+                            baseDiscount: this.baseDiscount || 0,
+                            secondaryDiscount: this.secondaryDiscount || 0,
+                            markup: this.markup || 0,
+                            fx: this.fx || 0,
+                            sourceColumn: this.secondaryDiscountSource,
+                            createdAt: new Date(),
+                        };
+                        await db.collection("discount_profiles").add(newDiscountProfile);
+                        alert(`Price Schedule "${newColumnName}" has been saved successfully!`);
+                    }
+
+                    // --- BEGIN: Apply the new discount immediately ---
+                    const baseDiscountRate = 1 - ((this.baseDiscount || 0) / 100);
+                    const secondaryDiscountRate = 1 - ((this.secondaryDiscount || 0) / 100);
+                    const markupRate = 1 + ((this.markup || 0) / 100);
+                    const fxRate = this.fx || 1; // Default to 1 if fx is 0 or undefined
+                    this.tableData.forEach(row => {
+                        const sourcePrice = parseFloat(row[this.secondaryDiscountSource]) || 0;
+                        row[newColumnName] = (sourcePrice * baseDiscountRate * secondaryDiscountRate * markupRate * fxRate).toFixed(2);
+                    });
+                    if (!this.internalSelectedPriceHeaders.includes(newColumnName)) {
+                        this.internalSelectedPriceHeaders.push(newColumnName);
+                    }
+                    // --- END: Apply the new discount immediately ---
+
                     await this.fetchDiscountProfiles(); // Refresh the list of profiles
                 } catch (error) {
-                    console.error("Error fetching discount profiles:", error);
-                    alert("Could not fetch your saved discount profiles. A required database index might be missing.");
+                    console.error("Error saving Price Schedule:", error);
+                    alert("There was an error saving your Price Schedule.");
                 }
             },
-            async renameDiscountProfile() {
+            async renamePriceSchedule() {
                 if (!this.profileToManageId) {
-                    alert("Please select a profile to rename.");
+                    alert("Please select a Price Schedule to rename.");
                     return;
                 }
                 const profile = this.savedDiscountProfiles.find(p => p.id === this.profileToManageId);
@@ -268,7 +338,7 @@ export function initializeConfigurator(config) {
                 if (newName && newName.trim() !== '' && newName !== profile.discountName) {
                     try {
                         await db.collection("discount_profiles").doc(this.profileToManageId).update({ discountName: newName.trim() });
-                        alert("Profile renamed successfully.");
+                        alert("Price Schedule renamed successfully.");
                         // Update the name in the selected headers if it's currently displayed
                         const headerIndex = this.internalSelectedPriceHeaders.indexOf(profile.discountName);
                         if (headerIndex > -1) {
@@ -276,43 +346,24 @@ export function initializeConfigurator(config) {
                         }
                         await this.fetchDiscountProfiles();
                     } catch (error) {
-                        console.error("Error renaming profile:", error);
-                        alert("Failed to rename profile.");
+                        console.error("Error renaming Price Schedule:", error);
+                        alert("Failed to rename Price Schedule.");
                     }
                 }
             },
-            async deleteDiscountProfile() {
+            async deletePriceSchedule() {
                 if (!this.profileToManageId) {
-                    alert("Please select a profile to delete.");
+                    alert("Please select a Price Schedule to delete.");
                     return;
                 }
                 const profile = this.savedDiscountProfiles.find(p => p.id === this.profileToManageId);
                 if (!profile || !confirm(`Are you sure you want to delete the "${profile.discountName}" profile? This cannot be undone.`)) return;
 
                 await db.collection("discount_profiles").doc(this.profileToManageId).delete();
-                alert("Profile deleted successfully.");
+                alert("Price Schedule deleted successfully.");
                 this.internalSelectedPriceHeaders = this.internalSelectedPriceHeaders.filter(h => h !== profile.discountName);
                 this.profileToManageId = ''; // Reset selection
                 await this.fetchDiscountProfiles();
-            },
-            applyDiscountProfile() {
-                if (!this.selectedDiscountProfileId) return;
-
-                const profile = this.savedDiscountProfiles.find(p => p.id === this.selectedDiscountProfileId);
-                if (!profile) {
-                    alert("Selected discount profile not found.");
-                    return;
-                }
-
-                const newColumnName = profile.discountName;
-                const baseDiscountRate = 1 - ((profile.baseDiscount || 0) / 100);
-                const secondaryDiscountRate = 1 - ((profile.secondaryDiscount || 0) / 100);
-
-                this.tableData.forEach(row => {
-                    const sourcePrice = parseFloat(row[profile.sourceColumn]) || 0;
-                    row[newColumnName] = (sourcePrice * baseDiscountRate * secondaryDiscountRate).toFixed(2);
-                });
-                this.internalSelectedPriceHeaders.push(newColumnName);
             },
             applyDefaults() {
                 if (!this.selectedBase) return;
@@ -428,8 +479,8 @@ export function initializeConfigurator(config) {
             toggleColumnDropdown() {
                 this.isColumnDropdownOpen = !this.isColumnDropdownOpen;
             },
-            togglePriceColumnDropdown() {
-                this.isPriceColumnDropdownOpen = !this.isPriceColumnDropdownOpen;
+            togglePriceScheduleDropdown() {
+                this.isPriceScheduleDropdownOpen = !this.isPriceScheduleDropdownOpen;
             },
             submitConfiguration() {
                 if (this.isFormInvalid) {
@@ -444,12 +495,6 @@ export function initializeConfigurator(config) {
                     return this.selectedBaseId === specialControlIds.extraTallBase;
                 }
                 return false;
-            },
-            getHoveredItem(control) {
-                if (control.id === 'base-product') return this.selectedBase;
-                if (control.controlType === 'CB') return this.formSelections[control.id] ? this.tableData.find(p => p.ID === control.id) : null;
-                if (control.controlType === 'DDR' || control.controlType === 'DD') return this.selectedOptions[control.id];
-                return null;
             },
             loadConfiguration() {
                 const user = firebase.auth().currentUser;
@@ -554,14 +599,14 @@ export function initializeConfigurator(config) {
                 let total = this.finalConfigurationItems.reduce((sum, item) => sum + (parseFloat(item[header]) || 0), 0);
 
                 // If the column is 'Cost', add the overhead costs.
-                if (header.toLowerCase() === 'cost') {
+                if (header === this.costBasisSource) {
                     total += parseFloat(this.overheadCosts) || 0;
                 }
 
                 return total.toFixed(2);
             },
             getMargin(header) {
-                const costTotal = parseFloat(this.getHeaderTotal('Cost')) || 0;
+                const costTotal = parseFloat(this.getHeaderTotal(this.costBasisSource)) || 0;
                 const columnTotal = parseFloat(this.getHeaderTotal(header)) || 0;
                 const margin = columnTotal - costTotal;
                 return margin.toFixed(2);
@@ -600,6 +645,52 @@ export function initializeConfigurator(config) {
             },
         },
         watch: {
+            selectedPriceHeaders(newHeaders, oldHeaders) {
+                // Ensure margin display state is initialized for new headers
+                newHeaders.forEach(header => {
+                    if (!this.marginDisplayState[header]) {
+                        this.marginDisplayState[header] = 'percentage';
+                    }
+                });
+
+                // Find newly added headers by comparing the new array with the old one
+                const addedHeaders = newHeaders.filter(h => !oldHeaders.includes(h));
+                for (const headerName of addedHeaders) {
+                    // Check if the newly added header corresponds to a saved discount profile
+                    const profile = this.savedDiscountProfiles.find(p => p.discountName === headerName);
+                    if (profile) {
+                        // If it is, apply the discount calculation to populate the data
+                        const baseDiscountRate = 1 - ((profile.baseDiscount || 0) / 100);
+                        const secondaryDiscountRate = 1 - ((profile.secondaryDiscount || 0) / 100);
+                        const markupRate = 1 + ((profile.markup || 0) / 100);
+                        const fxRate = profile.fx || 1; // Default to 1 if fx is 0 or undefined
+
+                        this.tableData.forEach(row => {
+                            const sourcePrice = parseFloat(row[profile.sourceColumn]) || 0;
+                            row[headerName] = (sourcePrice * baseDiscountRate * secondaryDiscountRate * markupRate * fxRate).toFixed(2);
+                        });
+                    }
+                }
+
+                this.saveSettings();
+            },
+            isSpecialOrder() { this.saveSettings(); },
+            selectedTableHeaders: {
+                handler() { this.saveSettings(); },
+                deep: true
+            },
+            internalSelectedPriceHeaders: {
+                handler() { this.saveSettings(); },
+                deep: true
+            },
+            baseDiscount() { this.saveSettings(); },
+            secondaryDiscount() { this.saveSettings(); },
+            markup() { this.saveSettings(); },
+            fx() { this.saveSettings(); },
+            currencySymbol() { this.saveSettings(); },
+            costBasisSource() { this.saveSettings(); },
+            showCosts() { this.saveSettings(); },
+            overheadCosts() { this.saveSettings(); },
             selectedBaseId(newBaseId) {
                 // When the base product changes, we must clear all previous selections
                 // to prevent rules from being evaluated against a stale configuration.
@@ -627,10 +718,10 @@ export function initializeConfigurator(config) {
                 if (isOpen) document.addEventListener('click', this.handleClickOutside);
                 else document.removeEventListener('click', this.handleClickOutside);
             },
-            isPriceColumnDropdownOpen(isOpen) {
-                if (isOpen) document.addEventListener('click', this.handlePriceClickOutside);
+            isPriceScheduleDropdownOpen(isOpen) {
+                if (isOpen) document.addEventListener('click', this.handlePriceScheduleClickOutside);
                 // The handler might not exist on simpler pages, so check before removing.
-                else if (this.handlePriceClickOutside) document.removeEventListener('click', this.handlePriceClickOutside);
+                else if (this.handlePriceScheduleClickOutside) document.removeEventListener('click', this.handlePriceScheduleClickOutside);
             },
             activeTab(newTab) {
                 if (newTab === 'my-builds') this.fetchSavedBuilds();
@@ -660,20 +751,6 @@ export function initializeConfigurator(config) {
                     }
                 }
             },
-            // Watcher for all settings properties to persist them
-            isSpecialOrder() { this.saveSettings(); },
-            selectedTableHeaders: {
-                handler() { this.saveSettings(); },
-                deep: true
-            },
-            internalSelectedPriceHeaders: {
-                handler() { this.saveSettings(); },
-                deep: true
-            },
-            baseDiscount() { this.saveSettings(); },
-            secondaryDiscount() { this.saveSettings(); },
-            showCosts() { this.saveSettings(); },
-            overheadCosts() { this.saveSettings(); },
         },
         created() {
             this.handleClickOutside = (event) => {
@@ -681,10 +758,10 @@ export function initializeConfigurator(config) {
                     this.isColumnDropdownOpen = false;
                 }
             };
-            this.handlePriceClickOutside = (event) => {
+            this.handlePriceScheduleClickOutside = (event) => {
                 // Check if the price column selector ref exists before using it.
                 if (this.$refs.priceColumnSelector && !this.$refs.priceColumnSelector.contains(event.target)) {
-                    this.isPriceColumnDropdownOpen = false;
+                    this.isPriceScheduleDropdownOpen = false;
                 }
             };
 
@@ -705,15 +782,6 @@ export function initializeConfigurator(config) {
             this.internalSelectedPriceHeaders.forEach(header => {
                 this.marginDisplayState[header] = 'percentage'; // Default to percentage
             });
-        },
-        watch: {
-            selectedPriceHeaders(newHeaders, oldHeaders) {
-                newHeaders.forEach(header => {
-                    if (!this.marginDisplayState[header]) {
-                        this.marginDisplayState[header] = 'percentage';
-                    }
-                });
-            }
         },
     }).mount('#order-form-container');
 }

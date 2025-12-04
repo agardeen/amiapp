@@ -8,9 +8,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-
     <script>
-        // Your web app's Firebase configuration
+        // Your web app's Firebase configuration. This MUST be here to initialize Firebase.
         const firebaseConfig = {
             apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
             authDomain: "amiapp-e1d48.firebaseapp.com",
@@ -20,11 +19,8 @@
             appId: "1:709156310854:web:464a879038815ede871f47",
             measurementId: "G-TKSX1GEVSS"
         };
-
         // Initialize Firebase
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
     </script>
     <!-- A simple, clean CSS framework for styling -->
@@ -282,7 +278,7 @@
                                 <select id="base-product" v-model="selectedBaseId" required style="width: 100%;">
                                     <option disabled value="">Base</option>
                                     <option v-for="product in baseProducts" :key="product.ID" :value="product.ID">
-                                    {{ product.ITEM === product.DESCRIPTION ? product.ITEM : product.ITEM + ' ' + product.DESCRIPTION }} <span v-if="parseFloat(product[priceField]) > 0">${{ product[priceField] }}</span>
+                                    {{ product.ITEM === product.DESCRIPTION ? product.ITEM : product.ITEM + ' ' + product.DESCRIPTION }} <span v-if="parseFloat(product[priceField]) > 0">{{ currencySymbol }}{{ product[priceField] }}</span>
                                     </option>
                                 </select>
                             </div>
@@ -296,13 +292,13 @@
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <label style="font-size: 0.85rem;">Total:</label>
                                     <template v-for="header in selectedPriceHeaders" :key="header">
-                                        <input type="text" readonly class="price-display total-price-display compact-price-box" :value="'$' + getHeaderTotal(header)">
+                                        <input type="text" readonly class="price-display total-price-display compact-price-box" :value="currencySymbol + getHeaderTotal(header)">
                                     </template>
                                 </div>
                                 <div v-if="selectedBase" style="display: flex; align-items: center; gap: 0.5rem;">
                                     <label style="font-size: 0.85rem; color: #888;">Base:</label>
                                     <template v-for="header in selectedPriceHeaders" :key="header">
-                                        <input type="text" readonly class="price-display compact-price-box" :value="selectedBase[header] > 0 ? '$' + selectedBase[header] : ''">
+                                        <input type="text" readonly class="price-display compact-price-box" :value="selectedBase[header] > 0 ? currencySymbol + selectedBase[header] : ''">
                                     </template>
                                 </div>
                                 <div v-if="selectedPriceHeaders.some(h => h.toLowerCase() === 'cost')" style="display: flex; align-items: center; gap: 0.5rem;">
@@ -313,7 +309,7 @@
                                                readonly
                                                class="price-display compact-price-box"
                                                @click="toggleMarginDisplay(header)"
-                                               :value="marginDisplayState[header] === 'percentage' ? getMarginPercentage(header) : '$' + getMargin(header)"
+                                               :value="marginDisplayState[header] === 'percentage' ? getMarginPercentage(header) : currencySymbol + getMargin(header)"
                                                style="cursor: pointer;"
                                                :title="'Click to toggle Margin % / $'">
                                         <input v-else type="text" readonly class="price-display compact-price-box" value="">
@@ -321,11 +317,11 @@
                                 </div>
                             </div>
                         </div>
-                        <div v-if="hoveredControlId === 'base-product' && getHoveredItem({ id: 'base-product' }) && (getHoveredItem({ id: 'base-product' }).Notes || getHoveredItem({ id: 'base-product' }).Link)" class="notes-display">
-                            <div v-if="getHoveredItem({ id: 'base-product' }).Notes" class="notes-text">
-                                {{ getHoveredItem({ id: 'base-product' }).Notes }}
+                        <div v-if="hoveredControlId === 'base-product' && selectedBase && (selectedBase.Notes || selectedBase.Link)" class="notes-display">
+                            <div v-if="selectedBase.Notes" class="notes-text">
+                                {{ selectedBase.Notes }}
                             </div>
-                            <img v-if="getHoveredItem({ id: 'base-product' }).Link" :src="getHoveredItem({ id: 'base-product' }).Link" class="notes-image" alt="Note Image">
+                            <img v-if="selectedBase.Link" :src="selectedBase.Link" class="notes-image" alt="Note Image">
                         </div>
                     </div>
                     <!-- Dynamically Rendered Conditional Controls -->
@@ -336,30 +332,30 @@
                             <div style="flex-grow: 1;">
                                 <select v-if="control.controlType === 'DDR'" :id="control.id" v-model="formSelections[control.id]" required @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" style="width: 100%;">
                                     <option disabled value="">{{ control.label }}</option>
-                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span></option>
+                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">{{ currencySymbol }}{{ option[priceField] }}</span></option>
                                 </select>
                                 <select v-if="control.controlType === 'DD'" :id="control.id" v-model="formSelections[control.id]" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" :required="control.section === 'Pattern' && isPatternRequired" style="width: 100%;">
                                     <option :value="undefined">{{ control.label }}</option>
-                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span></option>
+                                    <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">{{ currencySymbol }}{{ option[priceField] }}</span></option>
                                 </select>
                                 <label v-if="control.controlType === 'CB' || control.controlType === 'CBR'" :for="control.id" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
                                     <input type="checkbox" :id="control.id" v-model="formSelections[control.id]" :disabled="isCheckboxDisabled(control.id)">
-                                    {{ control.label }} <span v-if="parseFloat(control.price) > 0">${{ control.price }}</span>
+                                    {{ control.label }} <span v-if="parseFloat(control.price) > 0">{{ currencySymbol }}{{ control.price }}</span>
                                 </label>
                             </div>
                             <!-- Right Side: Prices -->
                             <div class="price-columns-container" v-if="shouldShowPrice(control)">
                                 <template v-for="header in selectedPriceHeaders" :key="header">
                                     <!-- Price for Dropdowns -->
-                                    <input v-if="(control.controlType === 'DDR' || control.controlType === 'DD') && selectedOptions[control.id]" type="text" readonly class="price-display" :value="selectedOptions[control.id][header] > 0 ? '$' + selectedOptions[control.id][header] : ''" :style="{ color: header === 'Off Unit' ? 'blue' : '' }">
+                                    <input v-if="(control.controlType === 'DDR' || control.controlType === 'DD') && selectedOptions[control.id]" type="text" readonly class="price-display" :value="selectedOptions[control.id][header] > 0 ? currencySymbol + selectedOptions[control.id][header] : ''" :style="{ color: header === 'Off Unit' ? 'blue' : '' }">
                                     <!-- Price for Checkboxes -->
-                                    <input v-if="(control.controlType === 'CB' || control.controlType === 'CBR') && formSelections[control.id]" type="text" readonly class="price-display" :value="getCheckboxPrice(control, header) > 0 ? '$' + getCheckboxPrice(control, header) : ''" :style="{ color: header === 'Off Unit' ? 'blue' : '' }">
+                                    <input v-if="(control.controlType === 'CB' || control.controlType === 'CBR') && formSelections[control.id]" type="text" readonly class="price-display" :value="getCheckboxPrice(control, header) > 0 ? currencySymbol + getCheckboxPrice(control, header) : ''" :style="{ color: header === 'Off Unit' ? 'blue' : '' }">
                                 </template>
                             </div>
                         </div>
-                        <div v-if="hoveredControlId === control.id && getHoveredItem(control) && (getHoveredItem(control).Notes || getHoveredItem(control).Link)" class="notes-display">
-                            <div v-if="getHoveredItem(control).Notes" class="notes-text">{{ getHoveredItem(control).Notes }}</div>
-                            <img v-if="getHoveredItem(control).Link" :src="getHoveredItem(control).Link" class="notes-image" alt="Note Image">
+                        <div v-if="hoveredControlId === control.id && selectedOptions[control.id] && (selectedOptions[control.id].Notes || selectedOptions[control.id].Link)" class="notes-display">
+                            <div v-if="selectedOptions[control.id].Notes" class="notes-text">{{ selectedOptions[control.id].Notes }}</div>
+                            <img v-if="selectedOptions[control.id].Link" :src="selectedOptions[control.id].Link" class="notes-image" alt="Note Image">
                         </div>
                     </div>
             </form>
@@ -474,13 +470,13 @@
                             <td>{{ item.Section }}</td>
                             <td>{{ item.ITEM && item.ITEM.endsWith('u') ? item.ITEM.slice(0, -1) : item.ITEM }}</td>
                             <td>{{ item.DESCRIPTION }}</td>
-                            <td style="text-align: right;">${{ parseFloat(item[priceField]) || 0 }}</td>
+                            <td style="text-align: right;">{{ currencySymbol }}{{ parseFloat(item[priceField]) || 0 }}</td>
                         </tr>
                     </tbody>
                     <tfoot>
                         <tr>
                             <td colspan="3" style="text-align: right; font-weight: bold;">Total Price:</td>
-                            <td style="text-align: right; font-weight: bold;">${{ getHeaderTotal(priceField) }}</td>
+                            <td style="text-align: right; font-weight: bold;">{{ currencySymbol }}{{ getHeaderTotal(priceField) }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -534,9 +530,9 @@
                 <h4>Build</h4>
                 <!-- Settings for the Build tab will go here -->
                 <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
-                    <label>Select Price Columns to Display:</label>
+                    <label>Select Price Schedules to Display:</label>
                     <div class="custom-multiselect" ref="priceColumnSelector">
-                        <div class="multiselect-display" @click="togglePriceColumnDropdown">
+                        <div class="multiselect-display" @click="togglePriceScheduleDropdown">
                             <div v-if="selectedPriceHeaders.length === 0" style="padding: 5px 0;">Select Price Columns</div>
                             <div v-else class="selected-items-container">
                                 <span v-for="(header, index) in selectedPriceHeaders"
@@ -551,62 +547,97 @@
                                 </span>
                             </div>
                         </div>
-                        <div class="multiselect-options" v-if="isPriceColumnDropdownOpen">
+                        <div class="multiselect-options" v-if="isPriceScheduleDropdownOpen">
                             <label v-for="header in priceColumnHeaders" :key="header" style="display: block; padding: 5px 10px;">
                                 <input type="checkbox" :value="header" v-model="selectedPriceHeaders"> {{ header }}
                             </label>
                         </div>
                     </div>
                 </div>
-                <div class="form-group" style="display: flex; gap: 2rem; align-items: flex-end;">
+                <hr style="margin: 1.5rem 0;">
+                <!-- Prices Subsection -->
+                <h5>Prices</h5>
+                <div class="form-group" style="display: flex; gap: 0.5rem; align-items: flex-end;">
                     <div>
-                        <label for="base-discount">Base Discount:</label>
-                        <input type="number" id="base-discount" v-model.number="baseDiscount" placeholder="%" style="width: 7ch;">
-                    </div>
-                    <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
-                        <div>
-                            <label for="secondary-discount">Secondary:</label>
-                            <input type="number" id="secondary-discount" v-model.number="secondaryDiscount" placeholder="%" style="width: 7ch;">
-                        </div>
-                        <select v-model="secondaryDiscountSource" style="margin-bottom: 0;">
-                            <option disabled value="">Select Source</option>
+                        <label for="discount-source">Price Schedule</label>
+                        <select id="discount-source" v-model="secondaryDiscountSource" style="margin-bottom: 0; width: 16ch;">
+                            <option disabled value="">Select Price Schedule</option>
                             <option v-for="header in priceColumnHeaders" :key="header" :value="header">{{ header }}</option>
                         </select>
-                        <div>
-                            <label for="secondary-discount-name">Discount Name</label>
-                            <input type="text" id="secondary-discount-name" v-model="secondaryDiscountName" style="margin-bottom: 0;">
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
+                        <label style="margin-bottom: 0.2rem; width: 100%;">Discounts</label>
+                        <div style="display: flex; align-items: flex-end; gap: 0.2rem;">
+                            <div style="display: flex; flex-direction: column; align-items: center;">
+                                <label for="base-discount" style="font-size: 0.8em;">Primary</label>
+                                <input type="number" id="base-discount" v-model.number="baseDiscount" placeholder="%" style="width: 5ch; margin-bottom: 0;">
+                            </div>
+                            <span style="font-size: 1.5rem; padding-bottom: 0.1rem;">+</span>
+                            <div style="display: flex; flex-direction: column; align-items: center;">
+                                <label for="secondary-discount" style="font-size: 0.8em;">Secondary</label>
+                                <input type="number" id="secondary-discount" v-model.number="secondaryDiscount" placeholder="%" style="width: 5ch; margin-bottom: 0;">
+                            </div>
                         </div>
-                        <button @click.prevent="createDiscountColumn" type="button" style="margin-bottom: 0;">Create Discount</button>
                     </div>
-                </div>
-                <!-- New section for managing profiles -->
-                <div v-if="savedDiscountProfiles.length > 0" class="form-group" style="margin-top: 1.5rem; border-top: 1px solid #ccc; padding-top: 1rem;">
-                    <label>Manage Saved Profiles</label>
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <label for="markup" style="font-size: 0.8em; margin-bottom: 0.2rem;">Markup</label>
+                        <input type="number" id="markup" v-model.number="markup" placeholder="%" style="width: 5ch; margin-bottom: 0;">
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <label style="margin-bottom: 0.2rem;">FX-Currency</label>
+                        <div style="display: flex; align-items: flex-end; gap: 0.2rem;">
+                            <input type="number" id="fx" v-model.number="fx" placeholder="Rate" style="width: 5ch; margin-bottom: 0;" title="FX Rate">
+                            <input type="text" id="currency-symbol" v-model="currencySymbol" list="currency-list" maxlength="3" style="width: 6ch; margin-bottom: 0; text-align: center;" title="Currency Symbol">
+                        </div>
+                    </div>
                     <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
-                        <select v-model="profileToManageId" style="margin-bottom: 0;">
-                            <option disabled value="">Select a Profile to Manage</option>
-                            <option v-for="profile in savedDiscountProfiles" :key="profile.id" :value="profile.id">{{ profile.discountName }}</option>
-                        </select>
-                        <button @click.prevent="renameDiscountProfile" type="button" style="margin-bottom: 0;">Rename</button>
-                        <button @click.prevent="deleteDiscountProfile" type="button" style="margin-bottom: 0; color: red;">Delete</button>
+                        <div>
+                            <label for="secondary-discount-name">Price Schedule Name</label>
+                            <input type="text" id="secondary-discount-name" v-model="secondaryDiscountName" style="margin-bottom: 0; width: 16ch;">
+                        </div>
+                        <button @click.prevent="createPriceSchedule" type="button" title="Create Price Schedule" style="margin-bottom: 0; padding: 5px; line-height: 1; height: 37px; width: 37px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+                        </button>
                     </div>
                 </div>
-                <div v-if="savedDiscountProfiles.length > 0" class="form-group" style="display: flex; gap: 1rem; align-items: flex-end; margin-top: 1rem;">
-                    <div>
-                        <label for="saved-discounts">Apply a Saved Discount:</label>
-                        <select id="saved-discounts" v-model="selectedDiscountProfileId">
-                            <option disabled value="">Select a Profile</option>
-                            <option v-for="profile in savedDiscountProfiles" :key="profile.id" :value="profile.id">
-                                {{ profile.discountName }}
-                            </option>
-                        </select>
+                <datalist id="currency-list">
+                    <option value=""></option>
+                    <option value="$">USD</option>
+                    <option value="€">EUR</option>
+                    <option value="£">GBP</option>
+                    <option value="¥">JPY</option>
+                    <option value="C$">CAD</option>
+                    <option value="A$">AUD</option>
+                    <option value="Fr">CHF</option>
+                    <option value="₹">INR</option>
+                    <option value="R$">BRL</option>
+                    <option value="₽">RUB</option>
+                    <option value="₩">KRW</option>
+                    <option value="Mex$">MXN</option>
+                    <option value="S$">SGD</option>
+                    <option value="NZ$">NZD</option>
+                    <option value="kr">SEK</option>
+                    <option value="zł">PLN</option>
+                    <option value="฿">THB</option>
+                    <option value="₺">TRY</option>
+                </datalist>
+                <!-- Saved Profiles Subsection -->
+                <div v-if="savedDiscountProfiles.length > 0">
+                    <div class="form-group" style="margin-top: 1.5rem; border-top: 1px solid #ccc; padding-top: 1rem;">
+                        <label>Manage Saved Price Schedules</label>
+                        <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                            <select v-model="profileToManageId" style="margin-bottom: 0;">
+                                <option disabled value="">Select Schedule</option>
+                                <option v-for="profile in savedDiscountProfiles" :key="profile.id" :value="profile.id">{{ profile.discountName }}</option>
+                            </select>
+                            <button @click.prevent="renamePriceSchedule" type="button" style="margin-bottom: 0;">Rename</button>
+                            <button @click.prevent="deletePriceSchedule" type="button" style="margin-bottom: 0; color: red;">Delete</button>
+                        </div>
                     </div>
-                    <button @click.prevent="applyDiscountProfile" type="button" style="margin-bottom: 0;">Apply</button>
                 </div>
-            </div>
-            <hr>
-            <div>
-                <h4>Cost</h4>
+                <hr style="margin: 1.5rem 0;">
+                <!-- Cost Subsection -->
+                <h5>Cost</h5>
                 <div class="form-group">
                     <label>
                         <input type="checkbox" v-model="showCosts"> Show Costs
@@ -615,6 +646,14 @@
                 <div class="form-group">
                     <label for="overhead-costs">Overhead Costs</label>
                     <input type="number" id="overhead-costs" v-model.number="overheadCosts" placeholder="Enter amount">
+                </div>
+                <div class="form-group">
+                    <label for="cost-basis-source">Cost Basis for Margin</label>
+                    <select id="cost-basis-source" v-model="costBasisSource">
+                        <option v-for="header in priceColumnHeaders" :key="header" :value="header">
+                            {{ header }}
+                        </option>
+                    </select>
                 </div>
             </div>
             <hr>
@@ -649,14 +688,19 @@
 
     <script type="module">
         import { initializeConfigurator } from './sc-logic.js';
-
-        initializeConfigurator({
-            productName: 'Shower Commode',
-            firestoreDocId: 'sc',
-            priceFields: ['MSRP 26', 'MSRP 25', 'Off Unit'],
-            baseSection: 'Frame' // The 'Base' products are in the 'Frame' section for this sheet
+        
+        // We must wait for the DOM to be fully loaded before initializing the Vue app.
+        // This ensures that the template defined in the <script type="text/x-template"> tag
+        // is available before Vue tries to use it.
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeConfigurator({
+                productName: 'Shower Commode',
+                firestoreDocId: 'sc',
+                priceFields: ['MSRP 26', 'MSRP 25', 'Off Unit'],
+                baseSection: 'Frame' // The 'Base' products are in the 'Frame' section for this sheet
+            });
         });
     </script>
 
 </body>
-</html>  
+</html>
