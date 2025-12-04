@@ -298,7 +298,7 @@
                                 <div v-if="selectedBase" style="display: flex; align-items: center; gap: 0.5rem;">
                                     <label style="font-size: 0.85rem; color: #888;">Base:</label>
                                     <template v-for="header in selectedPriceHeaders" :key="header">
-                                        <input type="text" readonly class="price-display compact-price-box" :value="selectedBase[header] > 0 ? currencySymbol + selectedBase[header] : ''">
+                                        <input type="text" readonly class="price-display compact-price-box" :value="getDataRow(selectedBase, header) > 0 ? currencySymbol + getDataRow(selectedBase, header) : ''">
                                     </template>
                                 </div>
                                 <div v-if="selectedPriceHeaders.some(h => h.toLowerCase() === 'cost')" style="display: flex; align-items: center; gap: 0.5rem;">
@@ -347,7 +347,7 @@
                             <div class="price-columns-container" v-if="shouldShowPrice(control)">
                                 <template v-for="header in selectedPriceHeaders" :key="header">
                                     <!-- Price for Dropdowns -->
-                                    <input v-if="(control.controlType === 'DDR' || control.controlType === 'DD') && selectedOptions[control.id]" type="text" readonly class="price-display" :value="selectedOptions[control.id][header] > 0 ? currencySymbol + selectedOptions[control.id][header] : ''" :style="{ color: header === 'Off Unit' ? 'blue' : '' }">
+                                    <input v-if="(control.controlType === 'DDR' || control.controlType === 'DD') && selectedOptions[control.id]" type="text" readonly class="price-display" :value="getDataRow(selectedOptions[control.id], header) > 0 ? currencySymbol + getDataRow(selectedOptions[control.id], header) : ''" :style="{ color: header === 'Off Unit' ? 'blue' : '' }">
                                     <!-- Price for Checkboxes -->
                                     <input v-if="(control.controlType === 'CB' || control.controlType === 'CBR') && formSelections[control.id]" type="text" readonly class="price-display" :value="getCheckboxPrice(control, header) > 0 ? currencySymbol + getCheckboxPrice(control, header) : ''" :style="{ color: header === 'Off Unit' ? 'blue' : '' }">
                                 </template>
@@ -444,7 +444,7 @@
                     <tbody>
                         <tr v-for="(row, index) in tableData" :key="row.ID || index">
                             <td v-for="header in selectedTableHeaders" :key="header" :class="getColumnClass(header)">
-                                {{ row[header] }}
+                                {{ getDataRow(row, header) }}
                             </td>
                         </tr>
                     </tbody>
@@ -644,8 +644,28 @@
                     </label>
                 </div>
                 <div class="form-group">
-                    <label for="overhead-costs">Overhead Costs</label>
-                    <input type="number" id="overhead-costs" v-model.number="overheadCosts" placeholder="Enter amount">
+                    <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <label for="overhead-costs" style="font-size: 0.8em;">Unit Overhead</label>
+                            <input type="number" id="overhead-costs" v-model.number="overheadCosts" placeholder="Cost" style="width: 6ch; margin-bottom: 0;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <label for="shipping" style="font-size: 0.8em;">Shipping</label>
+                            <input type="number" id="shipping" v-model.number="shipping" placeholder="Cost" style="width: 6ch; margin-bottom: 0;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <label for="duties" style="font-size: 0.8em;">Duty/Tax %</label>
+                            <input type="number" id="duties" v-model.number="duties" placeholder="Duty/Tax %" style="width: 8ch; margin-bottom: 0;" title="Duty/Tax %">
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <label for="tax" style="font-size: 0.8em;">VAT %</label>
+                            <input type="number" id="tax" v-model.number="tax" placeholder="VAT %" style="width: 6ch; margin-bottom: 0;" title="VAT %">
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <label for="delivery" style="font-size: 0.8em;">Delivery</label>
+                            <input type="number" id="delivery" v-model.number="delivery" placeholder="Cost" style="width: 6ch; margin-bottom: 0;">
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="cost-basis-source">Cost Basis for Margin</label>

@@ -41,6 +41,10 @@ export function initializeConfigurator(config) {
                 userIpAddress: null,
                 overheadCosts: 0,
                 showCosts: false,
+                shipping: 0,
+                duties: 0,
+                tax: 0,
+                delivery: 0,
                 baseDiscount: 0,
                 secondaryDiscount: 0,
                 markup: 0,
@@ -131,7 +135,14 @@ export function initializeConfigurator(config) {
                 // Add the names of saved discount profiles to the list of available columns.
                 const discountProfileNames = this.savedDiscountProfiles.map(p => p.discountName);
                 
-                return [...new Set([...basePriceHeaders, ...discountProfileNames])]; // Use a Set to prevent duplicates.
+                let allHeaders = [...new Set([...basePriceHeaders, ...discountProfileNames])];
+
+                // If showCosts is enabled, ensure 'Cost' is in the list, but only once.
+                // The actual data source for 'Cost' will be handled by `getDataRow`.
+                allHeaders = allHeaders.filter(h => h !== 'Cost'); // Remove any existing 'Cost'
+                if (this.showCosts) allHeaders.push('Cost');
+
+                return allHeaders;
             },
             selectedPriceHeaders: {
                 get() {
@@ -191,6 +202,13 @@ export function initializeConfigurator(config) {
             },
         },
         methods: {
+            getDataRow(row, header) {
+                if (header === 'Cost') {
+                    // If the requested header is 'Cost', get the value from the selected cost basis source.
+                    return row[this.costBasisSource];
+                }
+                return row[header];
+            },
             saveSettings() {
                 const settings = {
                     isSpecialOrder: this.isSpecialOrder,
@@ -206,6 +224,10 @@ export function initializeConfigurator(config) {
                     secondaryDiscountName: this.secondaryDiscountName,
                     showCosts: this.showCosts,
                     overheadCosts: this.overheadCosts,
+                    shipping: this.shipping,
+                    duties: this.duties,
+                    tax: this.tax,
+                    delivery: this.delivery,
                 };
                 localStorage.setItem(this.settingsStorageKey, JSON.stringify(settings));
             },
@@ -225,6 +247,10 @@ export function initializeConfigurator(config) {
                     this.secondaryDiscountSource = settings.secondaryDiscountSource ?? '';
                     this.showCosts = settings.showCosts ?? false;
                     this.overheadCosts = settings.overheadCosts ?? 0;
+                    this.shipping = settings.shipping ?? 0;
+                    this.duties = settings.duties ?? 0;
+                    this.tax = settings.tax ?? 0;
+                    this.delivery = settings.delivery ?? 0;
                 }
             },
             async fetchDiscountProfiles() {
@@ -596,17 +622,25 @@ export function initializeConfigurator(config) {
                 // Gracefully handle if this method is called on a page without multi-price support
                 if (!this.finalConfigurationItems) return '0.00';
 
-                let total = this.finalConfigurationItems.reduce((sum, item) => sum + (parseFloat(item[header]) || 0), 0);
+                let total = this.finalConfigurationItems.reduce((sum, item) => sum + (parseFloat(this.getDataRow(item, header)) || 0), 0);
 
                 // If the column is 'Cost', add the overhead costs.
-                if (header === this.costBasisSource) {
+                if (header === 'Cost') {
+                    const itemTotal = total; // The sum of all item costs
+                    const dutiesPercentage = parseFloat(this.duties) || 0;
+                    const taxPercentage = parseFloat(this.tax) || 0;
+
                     total += parseFloat(this.overheadCosts) || 0;
+                    total += parseFloat(this.shipping) || 0;
+                    total += (itemTotal * (dutiesPercentage / 100)); // Add duties as a percentage of item total
+                    total += (itemTotal * (taxPercentage / 100)); // Add tax as a percentage of item total
+                    total += parseFloat(this.delivery) || 0;
                 }
 
                 return total.toFixed(2);
             },
             getMargin(header) {
-                const costTotal = parseFloat(this.getHeaderTotal(this.costBasisSource)) || 0;
+                const costTotal = parseFloat(this.getHeaderTotal('Cost')) || 0;
                 const columnTotal = parseFloat(this.getHeaderTotal(header)) || 0;
                 const margin = columnTotal - costTotal;
                 return margin.toFixed(2);
@@ -623,7 +657,7 @@ export function initializeConfigurator(config) {
             getCheckboxPrice(control, header) {
                 // Gracefully handle if this method is called on a page without multi-price support
                 const item = this.tableData.find(p => p.ID === control.id);
-                return item ? (item[header] || 0) : 0;
+                return item ? (this.getDataRow(item, header) || 0) : 0;
             },
             shouldShowPrice(control) {
                 if (control.controlType === 'CB') {
@@ -691,6 +725,10 @@ export function initializeConfigurator(config) {
             costBasisSource() { this.saveSettings(); },
             showCosts() { this.saveSettings(); },
             overheadCosts() { this.saveSettings(); },
+            shipping() { this.saveSettings(); },
+            duties() { this.saveSettings(); },
+            tax() { this.saveSettings(); },
+            delivery() { this.saveSettings(); },
             selectedBaseId(newBaseId) {
                 // When the base product changes, we must clear all previous selections
                 // to prevent rules from being evaluated against a stale configuration.
