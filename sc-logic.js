@@ -26,6 +26,9 @@ export function initializeConfigurator(config) {
                 isSpecialOrder: false,
                 selectedTableHeaders: [], // This will be loaded from settings
                 isColumnDropdownOpen: false,
+                summaryTableHeaders: [],
+                selectedSummaryHeaders: [], // Default selection
+                isSummaryColumnDropdownOpen: false,
                 internalSelectedPriceHeaders: priceFields,
                 isPriceScheduleDropdownOpen: false,
                 dragData: {
@@ -56,6 +59,9 @@ export function initializeConfigurator(config) {
                 savedDiscountProfiles: [],
                 profileToManageId: '', // For the new management dropdown
                 marginDisplayState: {}, // To track display mode for each header ('percentage' or 'amount')
+                summaryDiscount: 0,
+                summarySetupDelivery: 0,
+                summaryShipping: 0,
             };
         },
         computed: {
@@ -102,6 +108,12 @@ export function initializeConfigurator(config) {
                     if (selectedItem) items.push(selectedItem);
                 }
                 return items;
+            },
+            primaryPriceField() {
+                if (this.selectedPriceHeaders && this.selectedPriceHeaders.length > 0) {
+                    return this.selectedPriceHeaders[0];
+                }
+                return this.priceField; // Fallback to the default
             },
             totalPrice() {
                 return this.finalConfigurationItems.reduce((total, item) => total + (parseFloat(item[priceField]) || 0), 0);
@@ -200,8 +212,40 @@ export function initializeConfigurator(config) {
                 }
                 return controls;
             },
+            firstPriceColumnIndex() {
+                // Find the index of the first column that is a price column
+                return this.selectedSummaryHeaders.findIndex(h => this.isPriceColumn(h));
+            },
+            descriptionColumnIndex() {
+                return this.selectedSummaryHeaders.indexOf('Description');
+            },
+            summaryAdjustments() {
+                const adjustments = [];
+                if (this.summaryDiscount) adjustments.push({ label: `Discount (${this.summaryDiscount}%)`, type: 'percentage', value: this.summaryDiscount });
+                if (this.summarySetupDelivery) adjustments.push({ label: 'Setup/Delivery', value: this.summarySetupDelivery });
+                if (this.summaryShipping) adjustments.push({ label: 'Shipping', value: this.summaryShipping });
+                // Note: Duty/Tax and VAT are not included here as they are part of the 'Cost' column calculation.
+                return adjustments;
+            },
         },
         methods: {
+            isPriceColumn(header) {
+                // A header is a price column if it's in the list of available price columns
+                return this.priceColumnHeaders.includes(header);
+            },
+            getSummaryData(item, header) {
+                if (this.isPriceColumn(header)) {
+                    return (parseFloat(this.getDataRow(item, header)) || 0).toFixed(2);
+                }
+                switch (header) {
+                    case 'Item':
+                        return item.ITEM && item.ITEM.endsWith('u') ? item.ITEM.slice(0, -1) : item.ITEM;
+                    case 'Description':
+                        return item.DESCRIPTION;
+                    case 'Section':
+                        return item.Section;
+                }
+            },
             getDataRow(row, header) {
                 if (header === 'Cost') {
                     // If the requested header is 'Cost', get the value from the selected cost basis source.
@@ -209,10 +253,34 @@ export function initializeConfigurator(config) {
                 }
                 return row[header];
             },
+            formatAdjustment(item, header) {
+                if (item.type === 'percentage') {
+                    const subtotal = parseFloat(this.getHeaderTotal(header)) || 0;
+                    const discountValue = subtotal * (item.value / 100);
+                    return `${this.currencySymbol}${-Math.abs(discountValue).toFixed(2)}`;
+                } else {
+                    // For fixed values, show them under every price column.
+                    return `${this.currencySymbol}${item.value.toFixed(2)}`;
+                }
+            },
+            getGrandTotal(header) {
+                let total = parseFloat(this.getHeaderTotal(header)) || 0;
+                this.summaryAdjustments.forEach(adj => {
+                    if (adj.type === 'percentage') {
+                        const discountValue = total * (adj.value / 100);
+                        total -= Math.abs(discountValue);
+                    } else {
+                        // Apply fixed value adjustments (like shipping) to all price columns.
+                        total += adj.value;
+                    }
+                });
+                return total.toFixed(2);
+            },
             saveSettings() {
                 const settings = {
                     isSpecialOrder: this.isSpecialOrder,
                     selectedTableHeaders: this.selectedTableHeaders,
+                    selectedSummaryHeaders: this.selectedSummaryHeaders,
                     internalSelectedPriceHeaders: this.internalSelectedPriceHeaders,
                     baseDiscount: this.baseDiscount,
                     secondaryDiscount: this.secondaryDiscount,
@@ -228,6 +296,9 @@ export function initializeConfigurator(config) {
                     duties: this.duties,
                     tax: this.tax,
                     delivery: this.delivery,
+                    summaryDiscount: this.summaryDiscount,
+                    summarySetupDelivery: this.summarySetupDelivery,
+                    summaryShipping: this.summaryShipping,
                 };
                 localStorage.setItem(this.settingsStorageKey, JSON.stringify(settings));
             },
@@ -236,7 +307,8 @@ export function initializeConfigurator(config) {
                 if (savedSettings) {
                     const settings = JSON.parse(savedSettings);
                     this.isSpecialOrder = settings.isSpecialOrder ?? false;
-                    this.selectedTableHeaders = Array.isArray(settings.selectedTableHeaders) ? settings.selectedTableHeaders : this.internalTableHeaders;
+                    this.selectedTableHeaders = Array.isArray(settings.selectedTableHeaders) ? settings.selectedTableHeaders : []; // Default set after data load
+                    this.selectedSummaryHeaders = Array.isArray(settings.selectedSummaryHeaders) ? settings.selectedSummaryHeaders : ['Section', 'Item', 'Description', 'Price'];
                     this.internalSelectedPriceHeaders = Array.isArray(settings.internalSelectedPriceHeaders) ? settings.internalSelectedPriceHeaders : priceFields;
                     this.baseDiscount = settings.baseDiscount ?? 0;
                     this.secondaryDiscount = settings.secondaryDiscount ?? 0;
@@ -251,6 +323,9 @@ export function initializeConfigurator(config) {
                     this.duties = settings.duties ?? 0;
                     this.tax = settings.tax ?? 0;
                     this.delivery = settings.delivery ?? 0;
+                    this.summaryDiscount = settings.summaryDiscount ?? 0;
+                    this.summarySetupDelivery = settings.summarySetupDelivery ?? 0;
+                    this.summaryShipping = settings.summaryShipping ?? 0;
                 }
             },
             async fetchDiscountProfiles() {
@@ -438,6 +513,14 @@ export function initializeConfigurator(config) {
                         if (productData && productData.length > 0) {
                             this.internalTableHeaders = Object.keys(productData[0]) || [];
                             this.tableData = productData;
+                            // Now that we have headers, we can set the default selected headers if they weren't loaded from settings
+                            if (this.selectedTableHeaders.length === 0) {
+                                this.selectedTableHeaders = this.internalTableHeaders.filter(h => h.toLowerCase() !== 'cost');
+                            }
+                            this.summaryTableHeaders = ['Section', 'Item', 'Description', ...this.priceColumnHeaders.filter(h => h !== 'Price')];
+                            if (this.selectedSummaryHeaders.includes('Price')) {
+                                this.selectedSummaryHeaders = ['Section', 'Item', 'Description', this.primaryPriceField];
+                            }
                         } else { throw new Error("Product data is empty."); }
                     } else { throw new Error(`No product data found for '${firestoreDocId}' in the database.`); }
                 } catch (error) {
@@ -507,6 +590,9 @@ export function initializeConfigurator(config) {
             },
             togglePriceScheduleDropdown() {
                 this.isPriceScheduleDropdownOpen = !this.isPriceScheduleDropdownOpen;
+            },
+            toggleSummaryColumnDropdown() {
+                this.isSummaryColumnDropdownOpen = !this.isSummaryColumnDropdownOpen;
             },
             submitConfiguration() {
                 if (this.isFormInvalid) {
@@ -713,6 +799,10 @@ export function initializeConfigurator(config) {
                 handler() { this.saveSettings(); },
                 deep: true
             },
+            selectedSummaryHeaders: {
+                handler() { this.saveSettings(); },
+                deep: true
+            },
             internalSelectedPriceHeaders: {
                 handler() { this.saveSettings(); },
                 deep: true
@@ -729,6 +819,9 @@ export function initializeConfigurator(config) {
             duties() { this.saveSettings(); },
             tax() { this.saveSettings(); },
             delivery() { this.saveSettings(); },
+            summaryDiscount() { this.saveSettings(); },
+            summarySetupDelivery() { this.saveSettings(); },
+            summaryShipping() { this.saveSettings(); },
             selectedBaseId(newBaseId) {
                 // When the base product changes, we must clear all previous selections
                 // to prevent rules from being evaluated against a stale configuration.
@@ -755,6 +848,10 @@ export function initializeConfigurator(config) {
             isColumnDropdownOpen(isOpen) {
                 if (isOpen) document.addEventListener('click', this.handleClickOutside);
                 else document.removeEventListener('click', this.handleClickOutside);
+            },
+            isSummaryColumnDropdownOpen(isOpen) {
+                if (isOpen) document.addEventListener('click', this.handleSummaryColumnClickOutside);
+                else document.removeEventListener('click', this.handleSummaryColumnClickOutside);
             },
             isPriceScheduleDropdownOpen(isOpen) {
                 if (isOpen) document.addEventListener('click', this.handlePriceScheduleClickOutside);
@@ -794,6 +891,11 @@ export function initializeConfigurator(config) {
             this.handleClickOutside = (event) => {
                 if (this.$refs.columnSelector && !this.$refs.columnSelector.contains(event.target)) {
                     this.isColumnDropdownOpen = false;
+                }
+            };
+            this.handleSummaryColumnClickOutside = (event) => {
+                if (this.$refs.summaryColumnSelector && !this.$refs.summaryColumnSelector.contains(event.target)) {
+                    this.isSummaryColumnDropdownOpen = false;
                 }
             };
             this.handlePriceScheduleClickOutside = (event) => {

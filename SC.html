@@ -27,9 +27,25 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
     <style>
         #order-form-container { max-width: 900px; margin: 2rem auto; padding: 5px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9; }
+        :root {
+            --color-dark-blue: #003359;
+            --color-bright-blue: #009FE3;
+            --color-light-blue-bg: #e6f2ff;
+            --color-text-dark: #333333;
+            --color-text-light: #ffffff;
+            --color-bg-light: #f9f9f9;
+            --color-border: #ccc;
+            --color-header-bg: #f2f2f2;
+            --color-success: #28a745;
+            --color-danger: #dc3545;
+            --color-danger-bg: #ffcccc;
+        }
+        body { color: var(--color-text-dark); }
+        #order-form-container { max-width: 900px; margin: 2rem auto; padding: 5px; border: 1px solid var(--color-border); border-radius: 8px; background-color: var(--color-bg-light); }
         .tab-nav {
             display: flex;
             border-bottom: 1px solid #ccc;
+            border-bottom: 1px solid var(--color-border);
             margin-bottom: 2px;
         }
         .tab-nav button {
@@ -38,11 +54,14 @@
             border: 1px solid transparent;
             border-bottom: none;
             background-color: #eee;
+            background-color: var(--color-header-bg);
             margin-right: 5px;
         }
         .tab-nav button.active {
             background-color: #f9f9f9;
             border-color: #ccc;
+            background-color: var(--color-bg-light);
+            border-color: var(--color-border);
             border-bottom: 1px solid #f9f9f9;
             margin-bottom: -1px;
         }
@@ -59,6 +78,8 @@
         table { border-collapse: collapse; table-layout: auto; } /* Removed width: 100% and added table-layout: auto */
         th, td { padding: 4px 6px; border: 1px solid #ddd; text-align: left; font-size: 0.64rem; white-space: nowrap; overflow: hidden; }
         thead { background-color: #f2f2f2; }
+        th, td { padding: 4px 6px; border: 1px solid var(--color-border); text-align: left; font-size: 0.64rem; white-space: nowrap; overflow: hidden; }
+        thead { background-color: var(--color-header-bg); }
         .loading, .error { text-align: center; padding: 2rem; }
         .col-wide {
             min-width: 250px; /* Make the description column wider */
@@ -73,6 +94,7 @@
         }
         .tab-content-config {
             background-color: #fff5e6; /* A very light orange */
+            background-color: var(--color-light-blue-bg);
             padding: 1rem 1px 1px 1rem; /* top, right, bottom, left */
             border-radius: 4px;
             display: flex;
@@ -116,9 +138,13 @@
             background-color: green;
             color: white;
             border-color: darkgreen;
+            background-color: var(--color-success);
+            color: var(--color-text-light);
+            border-color: var(--color-success);
         }
         .invalid-submit {
             background-color: #ffcccc; /* Pale red */
+            background-color: var(--color-danger-bg); /* Pale red */
             color: #333;
         }
         .form-row {
@@ -140,6 +166,7 @@
         }
         .notes-display {
             background-color: #e6f2ff; /* Light Blue */
+            background-color: var(--color-light-blue-bg);
             padding: 8px;
             margin-bottom: 8px;
             border-radius: 4px;
@@ -162,9 +189,11 @@
         select:required:invalid {
             color: #666; /* Make placeholder text visible */
             border: 1px solid red; /* Add red border to unselected required fields */
+            border: 1px solid var(--color-danger); /* Add red border to unselected required fields */
         }
         .total-price-display {
             color: blue;
+            color: var(--color-bright-blue);
         }
         .compact-price-box {
             padding-top: 1px !important; /* Use !important to override .price-display */
@@ -176,6 +205,7 @@
         }
         .multiselect-display {
             border: 1px solid #ccc;
+            border: 1px solid var(--color-border);
             padding: 5px 10px;
             cursor: pointer;
             background-color: white;
@@ -188,6 +218,7 @@
             left: 0;
             right: 0;
             border: 1px solid #ccc;
+            border: 1px solid var(--color-border);
             border-top: none;
             background-color: white;
             z-index: 1000;
@@ -207,10 +238,13 @@
             cursor: move;
             font-size: 0.8rem;
             border: 1px solid #ccc;
+            border: 1px solid var(--color-border);
         }
         .drag-over {
             background-color: #3498db;
             color: white;
+            background-color: var(--color-bright-blue);
+            color: var(--color-text-light);
         }
     </style>
 </head>
@@ -232,7 +266,7 @@
     <script type="text/x-template" id="order-form-template">
         <div style="display: flex; justify-content: center; align-items: center; position: relative; margin-top: 4px; margin-bottom: 4px;">
             <a href="index.html" title="Home" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-main);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="var(--color-dark-blue)"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
             </a>
             <h2 style="margin: 0;">Shower Commode</h2>
         </div>
@@ -243,7 +277,7 @@
             <button @click="activeTab = 'table'" :class="{ active: activeTab === 'table' }">Item List</button>
             <button @click="activeTab = 'summary'" :class="{ active: activeTab === 'summary' }">Summary</button>
             <button v-if="isLoggedIn" @click="activeTab = 'my-builds'" :class="{ active: activeTab === 'my-builds' }">My Builds</button>
-            <button @click="activeTab = 'settings'" :class="['settings-button', { active: activeTab === 'settings' }]" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311a1.464 1.464 0 0 1-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c-1.4-.413-1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z"/></svg></button>
+            <button @click="activeTab = 'settings'" :class="['settings-button', { active: activeTab === 'settings' }]" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="var(--color-dark-blue)" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311a1.464 1.464 0 0 1-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c-1.4-.413-1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z"/></svg></button>
         </div>
 
 
@@ -278,7 +312,7 @@
                                 <select id="base-product" v-model="selectedBaseId" required style="width: 100%;">
                                     <option disabled value="">Base</option>
                                     <option v-for="product in baseProducts" :key="product.ID" :value="product.ID">
-                                    {{ product.ITEM === product.DESCRIPTION ? product.ITEM : product.ITEM + ' ' + product.DESCRIPTION }} <span v-if="parseFloat(product[priceField]) > 0">{{ currencySymbol }}{{ product[priceField] }}</span>
+                                    {{ product.ITEM === product.DESCRIPTION ? product.ITEM : product.ITEM + ' ' + product.DESCRIPTION }} <span v-if="parseFloat(product[primaryPriceField]) > 0">{{ currencySymbol }}{{ product[primaryPriceField] }}</span>
                                     </option>
                                 </select>
                             </div>
@@ -341,6 +375,7 @@
                                 <label v-if="control.controlType === 'CB' || control.controlType === 'CBR'" :for="control.id" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
                                     <input type="checkbox" :id="control.id" v-model="formSelections[control.id]" :disabled="isCheckboxDisabled(control.id)">
                                     {{ control.label }} <span v-if="parseFloat(control.price) > 0">{{ currencySymbol }}{{ control.price }}</span>
+                                    {{ control.label }} <span v-if="getCheckboxPrice(control, primaryPriceField) > 0">{{ currencySymbol }}{{ getCheckboxPrice(control, primaryPriceField) }}</span>
                                 </label>
                             </div>
                             <!-- Right Side: Prices -->
@@ -459,24 +494,39 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Section</th>
-                            <th>Item</th>
-                            <th>Description</th>
-                            <th style="text-align: right;">Price</th> 
+                            <th v-for="header in selectedSummaryHeaders" :key="header" :style="{ 'text-align': isPriceColumn(header) ? 'right' : 'left' }">
+                                {{ header }}
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-for="item in finalConfigurationItems" :key="item.ID">
-                            <td>{{ item.Section }}</td>
-                            <td>{{ item.ITEM && item.ITEM.endsWith('u') ? item.ITEM.slice(0, -1) : item.ITEM }}</td>
-                            <td>{{ item.DESCRIPTION }}</td>
-                            <td style="text-align: right;">{{ currencySymbol }}{{ parseFloat(item[priceField]) || 0 }}</td>
+                            <td v-for="header in selectedSummaryHeaders" :key="header" :style="{ 'text-align': isPriceColumn(header) ? 'right' : 'left' }">
+                                <span v-if="isPriceColumn(header)">{{ currencySymbol }}</span>
+                                {{ getSummaryData(item, header) }}
+                            </td>
                         </tr>
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td colspan="3" style="text-align: right; font-weight: bold;">Total Price:</td>
-                            <td style="text-align: right; font-weight: bold;">{{ currencySymbol }}{{ getHeaderTotal(priceField) }}</td>
+                            <td v-for="header in selectedSummaryHeaders" :key="header" :style="{ 'text-align': header === 'Description' || isPriceColumn(header) ? 'right' : 'left', 'font-weight': 'bold' }">
+                                <span v-if="header === 'Description'">Subtotal:</span>
+                                <span v-if="isPriceColumn(header)">{{ currencySymbol }}{{ getHeaderTotal(header) }}</span>
+                            </td>
+                        </tr>
+                        <!-- Dynamically added summary adjustments -->
+                        <tr v-for="item in summaryAdjustments" :key="item.label">
+                            <td v-for="(header, index) in selectedSummaryHeaders" :key="header" :style="{ 'text-align': isPriceColumn(header) ? 'right' : 'left', 'font-weight': 'normal' }">
+                                <span v-if="index === descriptionColumnIndex">{{ item.label }}</span>
+                                <span v-if="isPriceColumn(header) && header !== 'Cost'">{{ formatAdjustment(item, header) }}</span>
+                            </td>
+                        </tr>
+                        <!-- Final Total Row -->
+                        <tr v-if="summaryAdjustments.length > 0">
+                            <td v-for="(header, index) in selectedSummaryHeaders" :key="header" :style="{ 'text-align': isPriceColumn(header) ? 'right' : 'left', 'font-weight': 'bold', 'border-top': '2px solid black' }">
+                                <span v-if="index === descriptionColumnIndex">Total:</span>
+                                <span v-if="isPriceColumn(header) && header !== 'Cost'">{{ currencySymbol }}{{ getGrandTotal(header) }}</span>
+                            </td>
                         </tr>
                     </tfoot>
                 </table>
@@ -505,7 +555,7 @@
                             <td>{{ new Date(build.updatedAt.seconds * 1000).toLocaleString() }}</td>
                             <td>
                                 <button @click="loadSavedConfiguration(build)" class="clear-button">Load</button>
-                                <button @click="deleteSavedConfiguration(build.id)" class="clear-button" style="color: red;">Delete</button>
+                                <button @click="deleteSavedConfiguration(build.id)" class="clear-button" style="color: var(--color-danger);">Delete</button>
                             </td>
                         </tr>
                     </tbody>
@@ -631,7 +681,7 @@
                                 <option v-for="profile in savedDiscountProfiles" :key="profile.id" :value="profile.id">{{ profile.discountName }}</option>
                             </select>
                             <button @click.prevent="renamePriceSchedule" type="button" style="margin-bottom: 0;">Rename</button>
-                            <button @click.prevent="deletePriceSchedule" type="button" style="margin-bottom: 0; color: red;">Delete</button>
+                            <button @click.prevent="deletePriceSchedule" type="button" style="margin-bottom: 0; color: var(--color-danger);">Delete</button>
                         </div>
                     </div>
                 </div>
@@ -701,7 +751,38 @@
             <hr>
             <div>
                 <h4>Summary</h4>
-                <!-- Settings for the Summary tab will go here -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
+                        <label>Select Summary Columns to Display:</label>
+                        <div class="custom-multiselect" ref="summaryColumnSelector">
+                            <div class="multiselect-display" @click="toggleSummaryColumnDropdown">
+                                {{ selectedSummaryHeaders.length > 0 ? selectedSummaryHeaders.length + ' columns selected' : 'Select Columns' }}
+                            </div>
+                            <div class="multiselect-options" v-if="isSummaryColumnDropdownOpen">
+                                <label v-for="header in summaryTableHeaders" :key="header" style="display: block; padding: 5px 10px;">
+                                    <input type="checkbox" :value="header" v-model="selectedSummaryHeaders"> {{ header }}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Summary Adjustments</label>
+                        <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                            <div style="display: flex; flex-direction: column; align-items: center;">
+                                <label for="summary-discount" style="font-size: 0.8em;">Discount %</label>
+                                <input type="number" id="summary-discount" v-model.number="summaryDiscount" placeholder="%" style="width: 8ch; margin-bottom: 0;">
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center;">
+                                <label for="summary-setup-delivery" style="font-size: 0.8em;">Setup/Delivery</label>
+                                <input type="number" id="summary-setup-delivery" v-model.number="summarySetupDelivery" placeholder="Amount" style="width: 8ch; margin-bottom: 0;">
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center;">
+                                <label for="summary-shipping" style="font-size: 0.8em;">Shipping</label>
+                                <input type="number" id="summary-shipping" v-model.number="summaryShipping" placeholder="Amount" style="width: 8ch; margin-bottom: 0;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </script>
