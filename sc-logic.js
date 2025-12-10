@@ -176,12 +176,22 @@ export function initializeConfigurator(config) {
                 }
         
                 const baseItemCode = this.selectedBase.ITEM;
+                // Get a set of all currently selected ITEM codes for quick lookup.
+                const selectedItemCodes = new Set(this.finalConfigurationItems.map(item => item.ITEM));
         
                 // 1. Filter for relevant rows.
-                // A row is relevant if its 'Base' column is empty (global) or contains the selected base's ITEM code.
                 const relevantRows = this.tableData.filter(row => {
                     if (row.Section === baseSection || !row.CntlGrp) return false; // Exclude base frames and items that can't be controls.
-                    return !row.Base || row.Base.split(',').map(b => b.trim()).includes(baseItemCode);
+        
+                    // Check 1: Base Requirement (must match the selected base frame)
+                    const baseMet = !row.Base || row.Base.split(',').map(b => b.trim()).includes(baseItemCode);
+                    if (!baseMet) return false;
+        
+                    // Check 2: 'Requires' Dependency
+                    // If a row has a 'Requires' value, at least one of the required items must be in the current selections.
+                    const requiresMet = !row.Requires || row.Requires.split(',').map(r => r.trim()).some(req => selectedItemCodes.has(req));
+                    
+                    return requiresMet;
                 });
         
                 const controls = [];
