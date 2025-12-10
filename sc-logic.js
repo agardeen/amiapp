@@ -62,6 +62,9 @@ export function initializeConfigurator(config) {
                 summaryDiscount: 0,
                 summarySetupDelivery: 0,
                 summaryShipping: 0,
+                isAdmin: false, // New property to track admin status
+                currentBuildName: '',
+                currentBuildUpdatedAt: null,
             };
         },
         computed: {
@@ -132,10 +135,12 @@ export function initializeConfigurator(config) {
             priceColumnHeaders() {
                 if (!this.internalTableHeaders.length) return [];
                 const headersToExclude = ['id'];
+                const costHeaders = ['cost', 'amicost'];
                 
                 // Start with the price-like columns from the original data.
                 const basePriceHeaders = (Array.isArray(this.internalTableHeaders) ? this.internalTableHeaders : []).filter(header => {
                     if (headersToExclude.includes(header.toLowerCase())) return false;
+                    // Only include 'Cost' or 'AMICost' if isAdmin is true
                     if (header.toLowerCase() === 'cost') return this.showCosts;
                     if (header.toLowerCase().includes('msrp')) return true;
                     return this.tableData.some(row => row[header]) && this.tableData.every(row => {
@@ -144,15 +149,21 @@ export function initializeConfigurator(config) {
                     });
                 });
 
+
                 // Add the names of saved discount profiles to the list of available columns.
                 const discountProfileNames = this.savedDiscountProfiles.map(p => p.discountName);
                 
                 let allHeaders = [...new Set([...basePriceHeaders, ...discountProfileNames])];
 
                 // If showCosts is enabled, ensure 'Cost' is in the list, but only once.
-                // The actual data source for 'Cost' will be handled by `getDataRow`.
-                allHeaders = allHeaders.filter(h => h !== 'Cost'); // Remove any existing 'Cost'
+                // The actual data source for 'Cost' will be handled by `getDataRow`.                
+                allHeaders = allHeaders.filter(h => h.toLowerCase() !== 'cost' && h.toLowerCase() !== 'amicost');
                 if (this.showCosts) allHeaders.push('Cost');
+                
+                // If AMICost exists in internalTableHeaders and isAdmin, add it.
+                if (this.internalTableHeaders.some(h => h.toLowerCase() === 'amicost') && !allHeaders.includes('AMICost')) {
+                    allHeaders.push('AMICost');
+                }
 
                 return allHeaders;
             },
@@ -237,6 +248,10 @@ export function initializeConfigurator(config) {
                 // Note: Duty/Tax and VAT are not included here as they are part of the 'Cost' column calculation.
                 return adjustments;
             },
+            formattedBuildDate() {
+                if (!this.currentBuildUpdatedAt) return '';
+                return new Date(this.currentBuildUpdatedAt.seconds * 1000).toLocaleString();
+            },
         },
         methods: {
             isPriceColumn(header) {
@@ -249,6 +264,7 @@ export function initializeConfigurator(config) {
                 }
                 switch (header) {
                     case 'Item':
+                        if (!item.ITEM) return ''; // Handle cases where ITEM might be undefined
                         return item.ITEM && item.ITEM.endsWith('u') ? item.ITEM.slice(0, -1) : item.ITEM;
                     case 'Description':
                         return item.DESCRIPTION;
@@ -268,6 +284,7 @@ export function initializeConfigurator(config) {
                     const subtotal = parseFloat(this.getHeaderTotal(header)) || 0;
                     const discountValue = subtotal * (item.value / 100);
                     return `${this.currencySymbol}${-Math.abs(discountValue).toFixed(2)}`;
+                } else if (header.toLowerCase() === 'cost' || header.toLowerCase() === 'amicost') { return ''; // Hide fixed adjustments for cost columns
                 } else {
                     // For fixed values, show them under every price column.
                     return `${this.currencySymbol}${item.value.toFixed(2)}`;
@@ -309,6 +326,8 @@ export function initializeConfigurator(config) {
                     summaryDiscount: this.summaryDiscount,
                     summarySetupDelivery: this.summarySetupDelivery,
                     summaryShipping: this.summaryShipping,
+                    currentBuildName: this.currentBuildName,
+                    currentBuildUpdatedAt: this.currentBuildUpdatedAt,
                 };
                 localStorage.setItem(this.settingsStorageKey, JSON.stringify(settings));
             },
@@ -316,6 +335,7 @@ export function initializeConfigurator(config) {
                 const savedSettings = localStorage.getItem(this.settingsStorageKey);
                 if (savedSettings) {
                     const settings = JSON.parse(savedSettings);
+                    // Do not load isAdmin from local storage. It will be set by onAuthStateChanged.
                     this.isSpecialOrder = settings.isSpecialOrder ?? false;
                     this.selectedTableHeaders = Array.isArray(settings.selectedTableHeaders) ? settings.selectedTableHeaders : []; // Default set after data load
                     this.selectedSummaryHeaders = Array.isArray(settings.selectedSummaryHeaders) ? settings.selectedSummaryHeaders : ['Section', 'Item', 'Description', 'Price'];
@@ -336,6 +356,8 @@ export function initializeConfigurator(config) {
                     this.summaryDiscount = settings.summaryDiscount ?? 0;
                     this.summarySetupDelivery = settings.summarySetupDelivery ?? 0;
                     this.summaryShipping = settings.summaryShipping ?? 0;
+                    this.currentBuildName = settings.currentBuildName || '';
+                    this.currentBuildUpdatedAt = settings.currentBuildUpdatedAt || null;
                 }
             },
             async fetchDiscountProfiles() {
@@ -527,10 +549,12 @@ export function initializeConfigurator(config) {
                             if (this.selectedTableHeaders.length === 0) {
                                 this.selectedTableHeaders = this.internalTableHeaders.filter(h => h.toLowerCase() !== 'cost');
                             }
-                            this.summaryTableHeaders = ['Section', 'Item', 'Description', ...this.priceColumnHeaders.filter(h => h !== 'Price')];
+                            this.summaryTableHeaders = ['Section', 'Item', 'Description', ...this.priceColumnHeaders.filter(h => h.toLowerCase() !== 'price' && h.toLowerCase() !== 'cost' && h.toLowerCase() !== 'amicost')];
+                            this.summaryTableHeaders.push('Cost');
+                            if (this.internalTableHeaders.some(h => h.toLowerCase() === 'amicost')) this.summaryTableHeaders.push('AMICost');
                             if (this.selectedSummaryHeaders.includes('Price')) {
                                 this.selectedSummaryHeaders = ['Section', 'Item', 'Description', this.primaryPriceField];
-                            }
+                            }                            
                         } else { throw new Error("Product data is empty."); }
                     } else { throw new Error(`No product data found for '${firestoreDocId}' in the database.`); }
                 } catch (error) {
@@ -572,6 +596,8 @@ export function initializeConfigurator(config) {
                 const buildName = prompt(`Please enter a name for this build:`, `My ${productName} Build`) || `${productName} Build ${new Date().toLocaleString()}`;
                 if (!buildName) return;
 
+                const now = new Date();
+
                 const configToSave = {
                     ownerId: user.uid,
                     productName: productName,
@@ -583,11 +609,13 @@ export function initializeConfigurator(config) {
                         isSpecialOrder: this.isSpecialOrder,
                         orderDetails: orderDetails
                     },
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
+                    createdAt: now,
+                    updatedAt: now,
                 };
                 try {
                     await db.collection("configurations").add(configToSave);
+                    this.currentBuildName = buildName;
+                    this.currentBuildUpdatedAt = { seconds: Math.floor(now.getTime() / 1000) }; // Mimic Firestore timestamp
                     alert(`Configuration "${buildName}" saved successfully!`);
                     this.fetchSavedBuilds();
                 } catch (error) {
@@ -644,6 +672,9 @@ export function initializeConfigurator(config) {
             },
             loadSavedConfiguration(build) {
                 if (!build || !build.configData) return;
+                this.currentBuildName = build.configurationName;
+                this.currentBuildUpdatedAt = build.updatedAt;
+
                 this.selectedBaseId = build.configData.selectedBaseId || '';
                 this.$nextTick(() => {
                     this.formSelections = build.configData.formSelections || {};
@@ -674,9 +705,14 @@ export function initializeConfigurator(config) {
                 if (newName && newName !== build.configurationName) {
                     await db.collection("configurations").doc(build.id).update({ configurationName: newName, updatedAt: new Date() });
                     this.fetchSavedBuilds();
+                    // If the renamed build is the one currently loaded, update the name on the summary tab
+                    if (this.currentBuildUpdatedAt && build.updatedAt.seconds === this.currentBuildUpdatedAt.seconds) {
+                        this.currentBuildName = newName;
+                    }
                 }
             },
             async fetchCurrentUserData(user) {
+                // This method is called after user logs in
                 if (!user) {
                     this.currentUserDoc = null;
                     return;
@@ -685,11 +721,87 @@ export function initializeConfigurator(config) {
                     const userDocRef = db.collection('users').doc(user.uid);
                     const userDocSnap = await userDocRef.get();
                     if (userDocSnap.exists) {
+                        const newAdminStatus = userDocSnap.data().isAdmin || false;
+                        this.isAdmin = newAdminStatus; // This will trigger the isAdmin watcher if status changes
                         this.currentUserDoc = userDocSnap.data();
                     }
                 } catch (error) {
                     console.error("Error fetching current user's data:", error);
                 }
+            },
+            downloadSummary() {
+                const headers = this.selectedSummaryHeaders;
+                const escapeCsv = (val) => {
+                    if (val === null || val === undefined) return '';
+                    const str = String(val);
+                    if (str.includes(',')) return `"${str}"`;
+                    return str;
+                };
+
+                let csvContent = headers.map(escapeCsv).join(',') + '\r\n';
+
+                // Item rows
+                this.finalConfigurationItems.forEach(item => {
+                    const row = headers.map(header => {
+                        const data = this.getSummaryData(item, header);
+                        return escapeCsv(data);
+                    });
+                    csvContent += row.join(',') + '\r\n';
+                });
+
+                // Footer rows
+                csvContent += '\r\n'; // Blank line
+
+                // Subtotal
+                const subtotalRow = headers.map(h => (h === 'Description' ? 'Subtotal:' : (this.isPriceColumn(h) ? this.getHeaderTotal(h) : '')));
+                csvContent += subtotalRow.map(escapeCsv).join(',') + '\r\n';
+
+                // Adjustments
+                this.summaryAdjustments.forEach(adj => {
+                    const adjRow = headers.map(h => {
+                        if (h === 'Description') return adj.label;
+                        if (this.isPriceColumn(h) && h !== 'Cost') return this.formatAdjustment(adj, h).replace(this.currencySymbol, '');
+                        return '';
+                    });
+                    csvContent += adjRow.map(escapeCsv).join(',') + '\r\n';
+                });
+
+                // Grand Total
+                const totalRow = headers.map(h => (h === 'Description' ? 'Total:' : (this.isPriceColumn(h) && h !== 'Cost' ? this.getGrandTotal(h) : '')));
+                csvContent += totalRow.map(escapeCsv).join(',') + '\r\n';
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", `${this.currentBuildName || 'summary'}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            },
+            downloadPdfSummary() {
+                const { jsPDF } = window.jspdf;
+                const content = document.getElementById('summary-content');
+                if (!content) {
+                    console.error("Summary content element not found!");
+                    return;
+                }
+
+                // Use html2canvas to capture the content
+                html2canvas(content, { scale: 2 }).then(canvas => {
+                    const imgData = canvas.toDataURL('image/png');
+                    const pdf = new jsPDF({
+                        orientation: 'portrait',
+                        unit: 'pt',
+                        format: 'letter'
+                    });
+
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                    pdf.save(`${this.currentBuildName || 'summary'}.pdf`);
+                });
             },
             dragStart(index, event) {
                 this.dragData.draggedIndex = index;
@@ -721,7 +833,7 @@ export function initializeConfigurator(config) {
                 let total = this.finalConfigurationItems.reduce((sum, item) => sum + (parseFloat(this.getDataRow(item, header)) || 0), 0);
 
                 // If the column is 'Cost', add the overhead costs.
-                if (header === 'Cost') {
+                if (header.toLowerCase() === 'cost' || header.toLowerCase() === 'amicost') {
                     const itemTotal = total; // The sum of all item costs
                     const dutiesPercentage = parseFloat(this.duties) || 0;
                     const taxPercentage = parseFloat(this.tax) || 0;
@@ -774,49 +886,85 @@ export function initializeConfigurator(config) {
                 }
             },
         },
-        watch: {
-            selectedPriceHeaders(newHeaders, oldHeaders) {
-                // Ensure margin display state is initialized for new headers
-                newHeaders.forEach(header => {
-                    if (!this.marginDisplayState[header]) {
-                        this.marginDisplayState[header] = 'percentage';
-                    }
-                });
-
-                // Find newly added headers by comparing the new array with the old one
-                const addedHeaders = newHeaders.filter(h => !oldHeaders.includes(h));
-                for (const headerName of addedHeaders) {
-                    // Check if the newly added header corresponds to a saved discount profile
-                    const profile = this.savedDiscountProfiles.find(p => p.discountName === headerName);
-                    if (profile) {
-                        // If it is, apply the discount calculation to populate the data
-                        const baseDiscountRate = 1 - ((profile.baseDiscount || 0) / 100);
-                        const secondaryDiscountRate = 1 - ((profile.secondaryDiscount || 0) / 100);
-                        const markupRate = 1 + ((profile.markup || 0) / 100);
-                        const fxRate = profile.fx || 1; // Default to 1 if fx is 0 or undefined
-
-                        this.tableData.forEach(row => {
-                            const sourcePrice = parseFloat(row[profile.sourceColumn]) || 0;
-                            row[headerName] = (sourcePrice * baseDiscountRate * secondaryDiscountRate * markupRate * fxRate).toFixed(2);
-                        });
-                    }
+        created() {
+            this.handleClickOutside = (event) => {
+                if (this.$refs.columnSelector && !this.$refs.columnSelector.contains(event.target)) {
+                    this.isColumnDropdownOpen = false;
                 }
+            };
+            this.handleSummaryColumnClickOutside = (event) => {
+                if (this.$refs.summaryColumnSelector && !this.$refs.summaryColumnSelector.contains(event.target)) {
+                    this.isSummaryColumnDropdownOpen = false;
+                }
+            };
+            this.handlePriceScheduleClickOutside = (event) => {
+                if (this.$refs.priceColumnSelector && !this.$refs.priceColumnSelector.contains(event.target)) {
+                    this.isPriceScheduleDropdownOpen = false;
+                }
+            };
 
-                this.saveSettings();
+            this.setOrderDetails();
+            this.loadSettings(); // Load settings before fetching data
+            this.fetchProductData(); // Initial data fetch
+
+            firebase.auth().onAuthStateChanged(async user => { // Made async to await fetchCurrentUserData
+                this.isLoggedIn = !!user;
+                this.currentUser = user;
+                if (user) {
+                    await this.fetchCurrentUserData(user); // Await this to ensure isAdmin is set
+                    this.fetchSavedBuilds();
+                    this.fetchDiscountProfiles();
+                    // fetchProductData will be called by the isAdmin watcher if isAdmin status changes
+                } else {
+                    // Clear admin status and related data if user logs out
+                    this.isAdmin = false;
+                    // The isAdmin watcher will trigger a re-fetch of product data for the non-admin view
+                    this.fetchSavedBuilds(); // Clear saved builds for logged out user
+                    this.fetchDiscountProfiles(); // Clear discount profiles
+                }
+            });
+
+            // Initialize margin display state after settings are loaded
+            this.internalSelectedPriceHeaders.forEach(header => {
+                this.marginDisplayState[header] = 'percentage'; // Default to percentage
+            });
+        },
+        watch: {
+            selectedPriceHeaders: {
+                handler(newHeaders, oldHeaders) {
+                    // Ensure margin display state is initialized for new headers
+                    newHeaders.forEach(header => {
+                        if (!this.marginDisplayState[header]) {
+                            this.marginDisplayState[header] = 'percentage';
+                        }
+                    });
+
+                    // Find newly added headers by comparing the new array with the old one
+                    const addedHeaders = (oldHeaders && Array.isArray(oldHeaders)) ? newHeaders.filter(h => !oldHeaders.includes(h)) : newHeaders;
+                    for (const headerName of addedHeaders) {
+                        // Check if the newly added header corresponds to a saved discount profile
+                        const profile = this.savedDiscountProfiles.find(p => p.discountName === headerName);
+                        if (profile) {
+                            // If it is, apply the discount calculation to populate the data
+                            const baseDiscountRate = 1 - ((profile.baseDiscount || 0) / 100);
+                            const secondaryDiscountRate = 1 - ((profile.secondaryDiscount || 0) / 100);
+                            const markupRate = 1 + ((profile.markup || 0) / 100);
+                            const fxRate = profile.fx || 1; // Default to 1 if fx is 0 or undefined
+
+                            this.tableData.forEach(row => {
+                                const sourcePrice = parseFloat(row[profile.sourceColumn]) || 0;
+                                row[headerName] = (sourcePrice * baseDiscountRate * secondaryDiscountRate * markupRate * fxRate).toFixed(2);
+                            });
+                        }
+                    }
+                    this.saveSettings();
+                },
+                deep: true
             },
             isSpecialOrder() { this.saveSettings(); },
-            selectedTableHeaders: {
-                handler() { this.saveSettings(); },
-                deep: true
-            },
-            selectedSummaryHeaders: {
-                handler() { this.saveSettings(); },
-                deep: true
-            },
-            internalSelectedPriceHeaders: {
-                handler() { this.saveSettings(); },
-                deep: true
-            },
+            selectedTableHeaders: { handler() { this.saveSettings(); }, deep: true },
+            selectedSummaryHeaders: { handler() { this.saveSettings(); }, deep: true },
+            internalSelectedPriceHeaders: { handler() { this.saveSettings(); }, deep: true },
             baseDiscount() { this.saveSettings(); },
             secondaryDiscount() { this.saveSettings(); },
             markup() { this.saveSettings(); },
@@ -837,22 +985,13 @@ export function initializeConfigurator(config) {
                 // to prevent rules from being evaluated against a stale configuration.
                 // This is a "hard reset" of the options whenever the base changes.
                 const wasDefaultsChecked = this.selectDefaults;
-                if (wasDefaultsChecked) {
-                    this.selectDefaults = false;
-                }
-
+                if (wasDefaultsChecked) this.selectDefaults = false;
                 this.formSelections = {};
 
                 // If defaults were on, re-check the box. The `selectDefaults` watcher will handle applying them.
-                if (wasDefaultsChecked) {
-                    this.$nextTick(() => { this.selectDefaults = true; });
-                }
+                if (wasDefaultsChecked) this.$nextTick(() => { this.selectDefaults = true; });
                 if (specialControlIds.extraTall && specialControlIds.extraTallBase) {
-                    if (newBaseId === specialControlIds.extraTallBase) {
-                        this.formSelections[specialControlIds.extraTall] = true;
-                    } else {
-                        this.formSelections[specialControlIds.extraTall] = false;
-                    }
+                    this.formSelections[specialControlIds.extraTall] = newBaseId === specialControlIds.extraTallBase;
                 }
             },
             isColumnDropdownOpen(isOpen) {
@@ -865,73 +1004,26 @@ export function initializeConfigurator(config) {
             },
             isPriceScheduleDropdownOpen(isOpen) {
                 if (isOpen) document.addEventListener('click', this.handlePriceScheduleClickOutside);
-                // The handler might not exist on simpler pages, so check before removing.
-                else if (this.handlePriceScheduleClickOutside) document.removeEventListener('click', this.handlePriceScheduleClickOutside);
+                else document.removeEventListener('click', this.handlePriceScheduleClickOutside);
             },
-            activeTab(newTab) {
-                if (newTab === 'my-builds') this.fetchSavedBuilds();
-            },
-            formSelections: {
-                handler(newSelections) {
-                    // Placeholder for future generic, rule-based auto-selections
-                },
-                deep: true
-            },
+            formSelections: { handler() {}, deep: true },
             selectDefaults(isDefaultsSelected) {
                 this.saveSettings();
                 // When the checkbox is checked, clear any existing selections and apply the defaults.
                 // When unchecked, we do nothing, leaving the user's selections as they are.
                 // A full reset can be done with the "Clear" button.
                 if (isDefaultsSelected) {
-                    this.formSelections = {}; // Clear previous non-default selections
+                    this.formSelections = {};
                     this.applyDefaults();
-                } 
+                }
             },
             conditionalControls(newControls) {
-                // When controls are added, ensure required dropdowns (DDR) have their
-                // model initialized to an empty string to show the placeholder.
                 for (const control of newControls) {
                     if (control.controlType === 'DDR' && !(control.id in this.formSelections)) {
                         this.formSelections[control.id] = '';
                     }
                 }
             },
-        },
-        created() {
-            this.handleClickOutside = (event) => {
-                if (this.$refs.columnSelector && !this.$refs.columnSelector.contains(event.target)) {
-                    this.isColumnDropdownOpen = false;
-                }
-            };
-            this.handleSummaryColumnClickOutside = (event) => {
-                if (this.$refs.summaryColumnSelector && !this.$refs.summaryColumnSelector.contains(event.target)) {
-                    this.isSummaryColumnDropdownOpen = false;
-                }
-            };
-            this.handlePriceScheduleClickOutside = (event) => {
-                // Check if the price column selector ref exists before using it.
-                if (this.$refs.priceColumnSelector && !this.$refs.priceColumnSelector.contains(event.target)) {
-                    this.isPriceScheduleDropdownOpen = false;
-                }
-            };
-
-            this.setOrderDetails();
-            this.loadSettings(); // Load settings before fetching data
-            this.fetchProductData();
-            firebase.auth().onAuthStateChanged(user => {
-                this.currentUser = user;
-                this.isLoggedIn = !!this.currentUser;
-                if (this.isLoggedIn) {
-                    this.fetchSavedBuilds();
-                    this.fetchDiscountProfiles();
-                    this.fetchCurrentUserData(user);
-                }
-            });
-
-            // Initialize margin display state after settings are loaded
-            this.internalSelectedPriceHeaders.forEach(header => {
-                this.marginDisplayState[header] = 'percentage'; // Default to percentage
-            });
         },
     }).mount('#order-form-container');
 }
