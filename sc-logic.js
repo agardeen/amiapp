@@ -136,7 +136,7 @@ export function initializeConfigurator(config) {
                 if (!this.internalTableHeaders.length) return [];
                 const headersToExclude = ['id'];
                 const costHeaders = ['cost', 'amicost'];
-                
+
                 // Start with the price-like columns from the original data.
                 const basePriceHeaders = (Array.isArray(this.internalTableHeaders) ? this.internalTableHeaders : []).filter(header => {
                     if (headersToExclude.includes(header.toLowerCase())) return false;
@@ -152,14 +152,14 @@ export function initializeConfigurator(config) {
 
                 // Add the names of saved discount profiles to the list of available columns.
                 const discountProfileNames = this.savedDiscountProfiles.map(p => p.discountName);
-                
+
                 let allHeaders = [...new Set([...basePriceHeaders, ...discountProfileNames])];
 
                 // If showCosts is enabled, ensure 'Cost' is in the list, but only once.
                 // The actual data source for 'Cost' will be handled by `getDataRow`.                
                 allHeaders = allHeaders.filter(h => h.toLowerCase() !== 'cost' && h.toLowerCase() !== 'amicost');
                 if (this.showCosts) allHeaders.push('Cost');
-                
+
                 // If AMICost exists in internalTableHeaders and isAdmin, add it.
                 if (this.internalTableHeaders.some(h => h.toLowerCase() === 'amicost') && !allHeaders.includes('AMICost')) {
                     allHeaders.push('AMICost');
@@ -185,36 +185,36 @@ export function initializeConfigurator(config) {
                 if (!this.selectedBase) {
                     return [];
                 }
-        
+
                 const baseItemCode = this.selectedBase.ITEM;
                 // Get a set of all currently selected ITEM codes for quick lookup.
                 const selectedItemCodes = new Set(this.finalConfigurationItems.map(item => item.ITEM));
-        
+
                 // 1. Filter for relevant rows.
                 const relevantRows = this.tableData.filter(row => {
                     if (row.Section === baseSection || !row.CntlGrp) return false; // Exclude base frames and items that can't be controls.
-        
+
                     // Check 1: Base Requirement (must match the selected base frame)
                     const baseMet = !row.Base || row.Base.split(',').map(b => b.trim()).includes(baseItemCode);
                     if (!baseMet) return false;
-        
+
                     // Check 2: 'Requires' Dependency
                     // If a row has a 'Requires' value, at least one of the required items must be in the current selections.
                     const requiresMet = !row.Requires || row.Requires.split(',').map(r => r.trim()).some(req => selectedItemCodes.has(req));
-                    
+
                     return requiresMet;
                 });
-        
+
                 const controls = [];
                 const processedGroups = new Set();
-        
+
                 // 2. Build control objects from the relevant rows.
                 for (const row of relevantRows) {
                     const isDropdown = row.Control === 'DDR' || row.Control === 'DD';
                     const groupKey = isDropdown ? row.CntlGrp : row.ID;
-        
+
                     if (processedGroups.has(groupKey)) continue;
-        
+
                     if (row.Control === 'DDR' || row.Control === 'DD') {
                         const options = relevantRows.filter(o => o.CntlGrp === row.CntlGrp && (o.Control === 'DDR' || o.Control === 'DD'));
 
@@ -284,7 +284,8 @@ export function initializeConfigurator(config) {
                     const subtotal = parseFloat(this.getHeaderTotal(header)) || 0;
                     const discountValue = subtotal * (item.value / 100);
                     return `${this.currencySymbol}${-Math.abs(discountValue).toFixed(2)}`;
-                } else if (header.toLowerCase() === 'cost' || header.toLowerCase() === 'amicost') { return ''; // Hide fixed adjustments for cost columns
+                } else if (header.toLowerCase() === 'cost' || header.toLowerCase() === 'amicost') {
+                    return ''; // Hide fixed adjustments for cost columns
                 } else {
                     // For fixed values, show them under every price column.
                     return `${this.currencySymbol}${item.value.toFixed(2)}`;
@@ -372,7 +373,7 @@ export function initializeConfigurator(config) {
                         .where("productName", "==", productName)
                         .orderBy("createdAt", "desc")
                         .get();
-                    
+
                     this.savedDiscountProfiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
                 } catch (error) {
@@ -396,7 +397,7 @@ export function initializeConfigurator(config) {
                     alert("Please select a Price Schedule.");
                     return;
                 }
-            
+
                 const newColumnName = this.secondaryDiscountName.trim();
                 const existingProfile = this.savedDiscountProfiles.find(p => p.discountName === newColumnName);
 
@@ -504,11 +505,14 @@ export function initializeConfigurator(config) {
                 // This logic is moved from the watcher to be called explicitly.
                 // It ensures that defaults are applied only when the new base is set.
                 const baseCode = this.selectedBase.ITEM;
-                const relevantRows = this.tableData.filter(row => !row.Base || row.Base.split(',').map(b => b.trim()).includes(baseCode));
-        
+                const relevantRows = this.tableData.filter(row =>
+                    row.Section !== baseSection &&
+                    (!row.Base || row.Base.split(',').map(b => b.trim()).includes(baseCode))
+                );
+
                 for (const row of relevantRows) {
                     if (!row.Notes || !row.Notes.includes('Default')) continue;
-        
+
                     if (row.Control === 'DDR' || row.Control === 'DD') {
                         this.formSelections[row.CntlGrp] = row.ID;
                     } else if (row.Control === 'CB' || row.Control === 'CBR') { // CBR is a required checkbox
@@ -554,11 +558,22 @@ export function initializeConfigurator(config) {
                             if (this.internalTableHeaders.some(h => h.toLowerCase() === 'amicost')) this.summaryTableHeaders.push('AMICost');
                             if (this.selectedSummaryHeaders.includes('Price')) {
                                 this.selectedSummaryHeaders = ['Section', 'Item', 'Description', this.primaryPriceField];
-                            }                            
+                            }
                         } else { throw new Error("Product data is empty."); }
                     } else { throw new Error(`No product data found for '${firestoreDocId}' in the database.`); }
                 } catch (error) {
-                    this.error = `Failed to load product data. Details: ${error.message}`;
+                    // Make error check more permissive and case-insensitive
+                    const errString = (error.message || error.toString()).toLowerCase();
+                    console.error("Product data load error:", error);
+                    if (errString.includes("permission") || error.code === "permission-denied") {
+                        this.error = "Access denied (Authentication Required). Redirecting to login...";
+                        setTimeout(() => {
+                            window.location.href = `login.html?redirect=${window.location.pathname.split('/').pop()}`;
+                        }, 1500);
+                    } else {
+                        // Tag message with (v2) to confirm new code loaded
+                        this.error = `Failed to load product data (v2). Details: ${error.message}`;
+                    }
                 } finally {
                     this.isLoading = false;
                 }
@@ -1006,7 +1021,7 @@ export function initializeConfigurator(config) {
                 if (isOpen) document.addEventListener('click', this.handlePriceScheduleClickOutside);
                 else document.removeEventListener('click', this.handlePriceScheduleClickOutside);
             },
-            formSelections: { handler() {}, deep: true },
+            formSelections: { handler() { }, deep: true },
             selectDefaults(isDefaultsSelected) {
                 this.saveSettings();
                 // When the checkbox is checked, clear any existing selections and apply the defaults.
