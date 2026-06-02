@@ -882,7 +882,7 @@
                             {{ selectedTableHeaders.length > 0 ? selectedTableHeaders.length + ' columns selected' : 'Columns Select' }}
                         </div>
                         <div class="multiselect-options" v-if="isColumnDropdownOpen">
-                            <label v-for="header in tableHeaders" :key="header" style="display: block; padding: 5px 10px;">
+                            <label v-for="header in itemListColumnOptions" :key="header" style="display: block; padding: 5px 10px;">
                                 <input type="checkbox" :value="header" v-model="selectedTableHeaders"> {{ header }}
                             </label>
                         </div>

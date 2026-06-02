@@ -26,7 +26,6 @@ export function initializeConfigurator(config) {
                 isSpecialOrder: false,
                 selectedTableHeaders: [], // This will be loaded from settings
                 isColumnDropdownOpen: false,
-                summaryTableHeaders: [],
                 selectedSummaryHeaders: [], // Default selection
                 isSummaryColumnDropdownOpen: false,
                 internalSelectedPriceHeaders: priceFields,
@@ -68,6 +67,24 @@ export function initializeConfigurator(config) {
             };
         },
         computed: {
+            summaryTableHeaders() {
+                if (!this.internalTableHeaders.length) return ['Section', 'Item', 'Description'];
+                const priceHeaders = this.priceColumnHeaders.filter(h =>
+                    h.toLowerCase() !== 'price' &&
+                    h.toLowerCase() !== 'cost' &&
+                    h.toLowerCase() !== 'amicost'
+                );
+                const headers = ['Section', 'Item', 'Description', ...priceHeaders];
+                if (this.showCosts) headers.push('Cost');
+                if (this.internalTableHeaders.some(h => h.toLowerCase() === 'amicost')) headers.push('AMICost');
+                return headers;
+            },
+            itemListColumnOptions() {
+                const nonPriceHeaders = (this.internalTableHeaders || []).filter(h =>
+                    !this.priceColumnHeaders.includes(h) && h.toLowerCase() !== 'cost'
+                );
+                return [...nonPriceHeaders, ...this.priceColumnHeaders];
+            },
             // Use the first price field as the default for single-price display
             tableHeaders() {
                 if (!this.internalTableHeaders || !this.internalTableHeaders.length) return [];
@@ -551,11 +568,10 @@ export function initializeConfigurator(config) {
                             this.tableData = productData;
                             // Now that we have headers, we can set the default selected headers if they weren't loaded from settings
                             if (this.selectedTableHeaders.length === 0) {
-                                this.selectedTableHeaders = this.internalTableHeaders.filter(h => h.toLowerCase() !== 'cost');
+                                this.selectedTableHeaders = this.internalTableHeaders.filter(h =>
+                                    h.toLowerCase() !== 'cost' && !this.priceColumnHeaders.includes(h)
+                                );
                             }
-                            this.summaryTableHeaders = ['Section', 'Item', 'Description', ...this.priceColumnHeaders.filter(h => h.toLowerCase() !== 'price' && h.toLowerCase() !== 'cost' && h.toLowerCase() !== 'amicost')];
-                            this.summaryTableHeaders.push('Cost');
-                            if (this.internalTableHeaders.some(h => h.toLowerCase() === 'amicost')) this.summaryTableHeaders.push('AMICost');
                             if (this.selectedSummaryHeaders.includes('Price')) {
                                 this.selectedSummaryHeaders = ['Section', 'Item', 'Description', this.primaryPriceField];
                             }
