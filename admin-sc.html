@@ -188,7 +188,6 @@
                     }
                     try {
                         const userDoc = await getDoc(doc(db, 'users', user.uid));
-                        console.log('uid:', user.uid, 'exists:', userDoc.exists(), 'data:', JSON.stringify(userDoc.data()));
                         if (userDoc.exists() && userDoc.data().roles?.includes('Admin1')) {
                             this.isAuthorized = true;
                             this.fetchProductData();
