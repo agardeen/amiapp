@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zing Size 2 Order Form</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
+            authDomain: "amiapp-e1d48.firebaseapp.com",
+            projectId: "amiapp-e1d48",
+            storageBucket: "amiapp-e1d48.appspot.com",
+            messagingSenderId: "709156310854",
+            appId: "1:709156310854:web:464a879038815ede871f47",
+            measurementId: "G-TKSX1GEVSS"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        firebase.auth().onAuthStateChanged(user => {
+            // App can be used by anonymous users
+        });
+    </script>
+    <!-- A simple, clean CSS framework for styling -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        #order-form-container { max-width: 900px; margin: 2rem auto; padding: 5px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9; }
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 2px;
+        }
+        .tab-nav button {
+            padding: 3px 10px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            background-color: #eee;
+            margin-right: 5px;
+        }
+        .tab-nav button.active {
+            background-color: #f9f9f9;
+            border-color: #ccc;
+            border-bottom: 1px solid #f9f9f9;
+            margin-bottom: -1px;
+        }
+        .settings-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px 8px; /* Adjust padding for icon */
+        }
+        .table-container {
+            overflow: auto; /* Enable both horizontal and vertical scrolling */
+            max-height: 60vh; /* Set a maximum height before scrolling starts */
+        }
+        table { border-collapse: collapse; table-layout: auto; } /* Removed width: 100% and added table-layout: auto */
+        th, td { padding: 4px 6px; border: 1px solid #ddd; text-align: left; font-size: 0.64rem; white-space: nowrap; overflow: hidden; }
+        thead { background-color: #f2f2f2; }
+        .loading, .error { text-align: center; padding: 2rem; }
+        .col-wide {
+            min-width: 250px; /* Make the description column wider */
+            white-space: normal; /* Allow text wrapping only for this column */
+        }
+        .col-narrow {
+            max-width: 80px; /* Encourage narrow columns to be smaller */
+        }
+        th {
+            position: sticky;
+            top: 0;
+        }
+        .tab-content-config {
+            background-color: #fff5e6; /* A very light orange */
+            padding: 1rem 1px 1px 1rem; /* top, right, bottom, left */
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            height: 500px; /* Example height, adjust as needed */
+            overflow-y: auto;
+            padding-right: 1rem; /* Add padding to the right to account for the scrollbar */
+        }
+        .form-group {
+            margin-bottom: 0.6rem; /* Reduced vertical spacing by 60% */
+        }
+        .price-column {
+            display: flex; flex-direction: column; align-items: flex-end; gap: 0;
+        }
+        .top-section .form-group {
+            /* Add padding to the right to account for the scrollbar in the bottom section */
+            padding-right: 17px; 
+        }
+        .actions-bar {
+            display: flex;
+            justify-content: space-around; /* Distribute buttons evenly */
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem; /* Space below the bar */
+        }
+        .submit-button {
+            background-color: green;
+            color: white;
+            border-color: darkgreen;
+        }
+        .form-row-bottom {
+            display: flex;
+            align-items: center; /* Vertically center items in the row */
+            gap: 1rem;
+        }
+        .invalid-submit {
+            background-color: #ffcccc; /* Pale red */
+            color: #333;
+        }
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: left;
+            gap: 1rem;
+        }
+        .price-columns-container {
+            display: flex;
+            gap: 0.5rem; /* Match the gap from the total price display */
+            align-items: center;
+            justify-content: flex-end; /* Align prices to the right */
+        }
+        .price-display {
+            text-align: right;
+            padding-top: 5px; /* Reduced height by ~20% */
+            padding-bottom: 5px; /* Reduced height by ~20% */
+            width: 9ch; /* Set width to roughly 9 characters */
+            font-size: 0.8rem; /* Reduce text size by 20% */
+        }
+        .notes-display {
+            background-color: #e6f2ff; /* Light Blue */
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-size: 1rem;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+        .notes-text {
+            width: 200px;
+            height: 150px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+        }
+        .notes-image {
+            max-width: 100%;
+            height: auto;
+            max-height: 150px;
+        }
+        select:required:invalid {
+            color: #666; /* Make placeholder text visible */
+            border: 1px solid red; /* Add red border to unselected required fields */
+        }
+        .total-price-display {
+            color: blue;
+        }
+        .compact-price-box {
+            padding-top: 1px !important; /* Use !important to override .price-display */
+            padding-bottom: 1px !important;
+        }
+        .custom-multiselect {
+            position: relative;
+            width: 200px;
+        }
+        .multiselect-display {
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            cursor: pointer;
+            background-color: white;
+            border-radius: 4px;
+            font-size: 0.7rem; /* Reduced font size by 30% */
+        }
+        .multiselect-options {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            border: 1px solid #ccc;
+            border-top: none;
+            background-color: white;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .selected-items-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            padding: 5px;
+        }
+        .selected-item-tag {
+            background-color: #e0e0e0;
+            padding: 3px 8px;
+            border-radius: 4px;
+            cursor: move;
+            font-size: 0.8rem;
+            border: 1px solid #ccc;
+        }
+        .drag-over {
+            background-color: #3498db;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="order-form-container">
+        <!-- The Vue.js application will be mounted here -->
+        <!-- The template for our app is now defined below, outside the main script block -->
+    </div>
+
+    <!-- 1. Include Vue.js library -->
+    <script src="https://unpkg.com/vue@3"></script>
+    
+    <!-- 
+      TEMPLATE DEFINITION 
+      This script block defines the HTML structure of our component.
+      By separating it, we make both the template and the logic easier to read.
+    -->
+    <script type="text/x-template" id="order-form-template">
+        <div style="display: flex; justify-content: center; align-items: center; position: relative; margin-top: 4px; margin-bottom: 4px;">
+            <a href="index.html" title="Home" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-main);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+            </a>
+            <h2 style="margin: 0;">Zing 2</h2>
+        </div>
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button @click="activeTab = 'configuration'" :class="{ active: activeTab === 'configuration' }">Build</button>
+            <button @click="activeTab = 'person'" :class="{ active: activeTab === 'person' }">Order Details</button>
+            <button @click="activeTab = 'table'" :class="{ active: activeTab === 'table' }">Item List</button>
+            <button @click="activeTab = 'summary'" :class="{ active: activeTab === 'summary' }">Summary</button>
+            <button v-if="isLoggedIn" @click="activeTab = 'my-builds'" :class="{ active: activeTab === 'my-builds' }">My Builds</button>
+            <button @click="activeTab = 'settings'" :class="['settings-button', { active: activeTab === 'settings' }]" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311a1.464 1.464 0 0 1-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c-1.4-.413-1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z"/></svg></button>
+        </div>
+
+        <!-- Tab Content -->
+        <div v-show="activeTab === 'configuration'" class="tab-content-config">
+            <div v-if="isLoading" class="loading">Loading Build...</div>
+            <form v-else-if="!error" style="display: flex; flex-direction: column; height: 100%;">
+                <!-- Combined Section -->
+                    <!-- Buttons and Defaults Section -->
+                    <div v-if="selectedBase" class="actions-bar">
+                        <label>
+                            <input type="checkbox" v-model="selectDefaults"> Select Defaults
+                        </label>
+                        <button @click.prevent="clearConfiguration" type="button" class="clear-button">
+                            Clear
+                        </button>
+                        <button @click.prevent="saveConfiguration" type="button" class="clear-button" title="Login required">
+                            Save
+                        </button>
+                        <button @click.prevent="loadConfiguration" type="button" class="clear-button" title="Login required">
+                            Load
+                        </button>
+                        <button @click.prevent="submitConfiguration" type="button" class="clear-button submit-button" :class="{ 'invalid-submit': isFormInvalid }">
+                            Submit
+                        </button>
+                    </div>
+
+                    <!-- Base Product Selection -->
+                    <div class="form-group">
+                        <div class="form-row" @mouseenter="hoveredControlId = 'base-product'" @mouseleave="hoveredControlId = null">
+                            <select id="base-product" v-model="selectedBaseId" required >
+                                <option disabled value="">Base</option>
+                                <option v-for="product in baseProducts" :key="product.ID" :value="product.ID">
+                                {{ product.ITEM === product.DESCRIPTION ? product.ITEM : product.ITEM + ' ' + product.DESCRIPTION }} <span v-if="parseFloat(product[priceField]) > 0">${{ product[priceField] }}</span>
+                                </option>
+                            </select>
+                            <div class="price-column" style="min-width: 29ch;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="font-size: 0.85rem; opacity: 0.05;">ListHeader:</label>
+                                    <template v-for="header in selectedPriceHeaders" :key="header">
+                                        <input type="text" readonly class="price-display compact-price-box" :value="header" style="text-align: center;">
+                                    </template>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="font-size: 0.85rem;">Total:</label>
+                                    <template v-for="header in selectedPriceHeaders" :key="header">
+                                        <input type="text" readonly class="price-display total-price-display compact-price-box" :value="'$' + getHeaderTotal(header)">
+                                    </template>
+                                </div>
+                                <div v-if="selectedBase" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="font-size: 0.85rem; color: #888;">Base:</label>
+                                    <template v-for="header in selectedPriceHeaders" :key="header">
+                                        <input type="text" readonly class="price-display compact-price-box" :value="'$' + (selectedBase[header] || 0)">
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="hoveredControlId === 'base-product' && getHoveredItem({ id: 'base-product' }) && (getHoveredItem({ id: 'base-product' }).Notes || getHoveredItem({ id: 'base-product' }).Link)" class="notes-display">
+                            <div v-if="getHoveredItem({ id: 'base-product' }).Notes" class="notes-text">
+                                {{ getHoveredItem({ id: 'base-product' }).Notes }}
+                            </div>
+                            <img v-if="getHoveredItem({ id: 'base-product' }).Link" :src="getHoveredItem({ id: 'base-product' }).Link" class="notes-image" alt="Note Image">
+                        </div>
+                    </div>
+                    <!-- Dynamically Rendered Conditional Controls -->
+                    <div v-if="selectedBase" >
+                        <div v-for="control in conditionalControls" :key="control.id" class="form-group">
+                            <div class="form-row-bottom">
+                                <!-- Left Side: Control -->
+                                <div style="flex-grow: 1;">
+                                    <select v-if="control.controlType === 'DDR'" :id="control.id" v-model="formSelections[control.id]" required @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" style="width: 100%;">
+                                        <option disabled value="">{{ control.label }}</option>
+                                        <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span></option>
+                                    </select>
+                                    <select v-if="control.controlType === 'DD'" :id="control.id" v-model="formSelections[control.id]" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null" :required="control.section === 'Pattern' && isPatternRequired" style="width: 100%;">
+                                        <option :value="undefined">{{ control.label }}</option>
+                                        <option v-for="option in control.options" :key="option.ID" :value="option.ID">{{ option.ITEM === option.DESCRIPTION ? option.ITEM : option.ITEM + ' ' + option.DESCRIPTION }} <span v-if="parseFloat(option[priceField]) > 0">${{ option[priceField] }}</span></option>
+                                    </select>
+                                    <label v-if="control.controlType === 'CB'" :for="control.id" @mouseenter="hoveredControlId = control.id" @mouseleave="hoveredControlId = null">
+                                        <input type="checkbox" :id="control.id" v-model="formSelections[control.id]" :disabled="isCheckboxDisabled(control.id)">
+                                        {{ control.label }} <span v-if="parseFloat(control.price) > 0">${{ control.price }}</span>
+                                    </label>
+                                </div>
+                                <!-- Right Side: Prices -->
+                                <div class="price-columns-container" v-if="shouldShowPrice(control)">
+                                    <template v-for="header in selectedPriceHeaders" :key="header">
+                                        <input v-if="(control.controlType === 'DDR' || control.controlType === 'DD') && selectedOptions[control.id]" type="text" readonly class="price-display" :value="selectedOptions[control.id][header] > 0 ? '$' + selectedOptions[control.id][header] : ''">
+                                        <input v-if="control.controlType === 'CB' && formSelections[control.id]" type="text" readonly class="price-display" :value="getCheckboxPrice(control, header) > 0 ? '$' + getCheckboxPrice(control, header) : ''">
+                                    </template>
+                                </div>
+                            </div>
+                            <div v-if="hoveredControlId === control.id && getHoveredItem(control) && (getHoveredItem(control).Notes || getHoveredItem(control).Link)" class="notes-display">
+                                <div v-if="getHoveredItem(control).Notes" class="notes-text">
+                                    {{ getHoveredItem(control).Notes }}
+                                </div>
+                                <img v-if="getHoveredItem(control).Link" :src="getHoveredItem(control).Link" class="notes-image" alt="Note Image">
+                            </div>
+                        </div>
+                    </div>
+            </form>
+            <div v-else class="error">{{ error }}</div>
+        </div>
+
+        <div v-show="activeTab === 'person'">
+            <h2>Order Details</h2>
+            <div style="display: flex; gap: 2rem;">
+                <div style="flex: 1;">
+                    <div class="form-group">
+                        <label for="po-number">Purchase Order #</label>
+                        <input type="text" id="po-number">
+                    </div>
+                    <div class="form-group">
+                        <label for="quote-number">Quote #</label>
+                        <input type="text" id="quote-number">
+                    </div>
+                    <div class="form-group">
+                        <label for="account-number">Account #</label>
+                        <input type="text" id="account-number">
+                    </div>
+                    <div class="form-group">
+                        <label for="ordered-by">Ordered By:</label>
+                        <input type="text" id="ordered-by">
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-company">Supplier Company:</label>
+                        <input type="text" id="supplier-company">
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-address">Address:</label>
+                        <textarea id="supplier-address" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-phone">Phone:</label>
+                        <input type="tel" id="supplier-phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier-email">Email:</label>
+                        <input type="email" id="supplier-email">
+                    </div>
+                    <div class="form-group">
+                        <label for="payer-source">Payer Source:</label>
+                        <input type="text" id="payer-source">
+                    </div>
+                    <div class="form-group">
+                        <label for="atp-name">Name of ATP (Required):</label>
+                        <input type="text" id="atp-name" required>
+                    </div>
+                </div>
+                <div style="flex: 1;">
+                    <h4>Ship To:</h4>
+                    <div class="form-group">
+                        <label for="ship-to-name">Name:</label>
+                        <input type="text" id="ship-to-name">
+                    </div>
+                    <div class="form-group">
+                        <label for="ship-to-address">Address:</label>
+                        <textarea id="ship-to-address" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="ship-to-phone">Phone:</label>
+                        <input type="tel" id="ship-to-phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="tag-for">Tag For:</label>
+                        <input type="text" id="tag-for">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-show="activeTab === 'table'">
+            <div v-if="isLoading" class="loading">Loading Table Data...</div>
+            <div v-if="error" class="error">{{ error }}</div>
+            <div v-if="!isLoading && !error" style="padding-top: 1rem;">
+                <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th v-for="header in selectedTableHeaders" :key="header" :class="getColumnClass(header)">{{ header }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(row, index) in tableData" :key="row.ID || index">
+                            <td v-for="header in selectedTableHeaders" :key="header" :class="getColumnClass(header)">
+                                {{ row[header] }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            </div>
+        </div>
+
+        <div v-show="activeTab === 'summary'">
+            <h2>Summary</h2>
+            <div v-if="finalConfigurationItems.length > 0" class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Section</th>
+                            <th>Item</th>
+                            <th>Description</th>
+                            <th style="text-align: right;">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="item in finalConfigurationItems" :key="item.ID">
+                            <td>{{ item.Section }}</td>
+                            <td>{{ item.ITEM && item.ITEM.endsWith('u') ? item.ITEM.slice(0, -1) : item.ITEM }}</td>
+                            <td>{{ item.DESCRIPTION }}</td>
+                             <td style="text-align: right;">${{ parseFloat(item[priceField]) || 0 }}</td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" style="text-align: right; font-weight: bold;">Total Price:</td>
+                            <td style="text-align: right; font-weight: bold;">${{ totalPrice }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <p v-else>No items have been configured yet.</p>
+        </div>
+
+        <div v-if="isLoggedIn" v-show="activeTab === 'my-builds'">
+            <h2>My Saved Builds</h2>
+            <div v-if="savedBuilds.length > 0" class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Product</th>
+                            <th>Last Saved</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="build in savedBuilds" :key="build.id">
+                            <td>
+                                <a href="#" @click.prevent="promptAndRenameBuild(build)">{{ build.configurationName }}</a>
+                            </td>
+                            <td>{{ build.productName }}</td>
+                            <td>{{ new Date(build.updatedAt.seconds * 1000).toLocaleString() }}</td>
+                            <td>
+                                <button @click="loadSavedConfiguration(build)" class="clear-button">Load</button>
+                                <button @click="deleteSavedConfiguration(build.id)" class="clear-button" style="color: red;">Delete</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p v-else>You have no saved builds for this product.</p>
+        </div>
+
+        <div v-show="activeTab === 'settings'">
+            <h2>Settings</h2>
+            
+            <div>
+                <h4>General</h4>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" v-model="isSpecialOrder"> Mark as Special Order
+                    </label>
+                </div>
+            </div>
+            <hr>
+            <div>
+                <h4>Item List</h4>
+                <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
+                    <label>Select Table Columns to Display:</label>
+                    <div class="custom-multiselect" ref="columnSelector">
+                        <div class="multiselect-display" @click="toggleColumnDropdown">
+                            {{ selectedTableHeaders.length > 0 ? selectedTableHeaders.length + ' columns selected' : 'Columns Select' }}
+                        </div>
+                        <div class="multiselect-options" v-if="isColumnDropdownOpen">
+                            <label v-for="header in tableHeaders" :key="header" style="display: block; padding: 5px 10px;">
+                                <input type="checkbox" :value="header" v-model="selectedTableHeaders"> {{ header }}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+             <hr>
+             <div>
+                 <h4>Build</h4>
+                 <!-- Settings for the Build tab will go here -->
+                 <div class="form-group" style="margin-bottom: 1rem; padding-top: 1px; padding-bottom: 1px;">
+                     <label>Select Price Columns to Display:</label>
+                     <div class="custom-multiselect" ref="priceColumnSelector">
+                         <div class="multiselect-display" @click="togglePriceColumnDropdown">
+                             <div v-if="selectedPriceHeaders.length === 0" style="padding: 5px 0;">Select Price Columns</div>
+                             <div v-else class="selected-items-container">
+                                 <span v-for="(header, index) in selectedPriceHeaders"
+                                       :key="header"
+                                       class="selected-item-tag"
+                                       draggable="true"
+                                       @dragstart="dragStart(index, $event)"
+                                       @dragover.prevent="dragOver(index, $event)"
+                                       @dragleave="dragLeave($event)"
+                                       @drop="onDrop(index, $event)">
+                                     {{ header }}
+                                 </span>
+                             </div>
+                         </div>
+                         <div class="multiselect-options" v-if="isPriceColumnDropdownOpen">
+                             <label v-for="header in priceColumnHeaders" :key="header" style="display: block; padding: 5px 10px;">
+                                 <input type="checkbox" :value="header" v-model="selectedPriceHeaders"> {{ header }}
+                             </label>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+             <hr>
+             <div>
+                 <h4>Summary</h4>
+                 <!-- Settings for the Summary tab will go here -->
+             </div>
+        </div>
+    </script>
+
+    <script type="module">
+        import { initializeConfigurator } from './configurator-logic.js';
+
+        initializeConfigurator({
+            productName: 'Zing Size 2',
+            firestoreDocId: 'zing2',
+            priceFields: ['MSRP 25'] // Default price field
+        });
+    </script>
+
+</body>
+</html>

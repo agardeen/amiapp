@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Manage Users</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        #admin-container { max-width: 95%; margin: 2rem auto; }
+        .controls { margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; }
+        .status { font-style: italic; }
+        .controls button { padding: 4px 12px; font-size: 0.8rem; margin: 0; }
+        .table-container { overflow: auto; max-height: 80vh; border-top: 1px solid #ddd; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 6px 10px; border: 1px solid #ddd; text-align: left; font-size: 0.9rem; }
+        thead th { background-color: #f2f2f2; position: sticky; top: 0; z-index: 10; }
+        td input, td select { width: 100%; box-sizing: border-box; border: 1px solid transparent; background: transparent; padding: 4px; font-size: 0.9rem; }
+        td select { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: none; } /* Minimalist dropdown */
+        td input:focus, td select:focus { border: 1px solid blue; background: white; }
+        .access-denied, .loading, .error { text-align: center; padding: 4rem; color: red; }
+        #admin-container h1 { font-size: 1.5rem; margin-bottom: 1.2rem; }
+        .dirty-row { background-color: #fff5e6; }
+    </style>
+</head>
+<body>
+
+    <div id="admin-container"></div>
+
+    <script src="https://unpkg.com/vue@3"></script>
+    <script type="text/x-template" id="admin-template">
+        <div v-if="!isAuthorized" class="access-denied">
+            <h1>Access Denied</h1>
+            <p>You do not have permission to view this page. <a href="index.html">Return to homepage</a>.</p>
+        </div>
+        <div v-else>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <a href="index.html" title="Home" style="color: var(--text-main);">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+                </a>
+                <h1>Manage Users</h1>
+            </div>
+            <div class="controls">
+                <button @click="saveChanges" :disabled="Object.keys(dirtyUsers).length === 0 || isLoading">Save Changes</button>
+                <button @click="discardChanges" :disabled="Object.keys(dirtyUsers).length === 0 || isLoading">Discard Changes</button>
+                <p v-if="Object.keys(dirtyUsers).length > 0" class="status" style="margin-left: auto;">
+                    You have unsaved changes in {{ Object.keys(dirtyUsers).length }} user(s).
+                </p>
+            </div>
+
+            <div v-if="isLoading" class="loading">Loading user data...</div>
+            <div v-if="error" class="error">{{ error }}</div>
+
+            <div v-if="!isLoading && !error" class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Email / Username</th>
+                            <th>Display Name</th>
+                            <th>Phone</th>
+                            <th>Role</th>
+                            <th>Company</th>
+                            <th>User ID (UID)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="user in users" :key="user.uid" :class="{ 'dirty-row': dirtyUsers[user.uid] }">
+                            <td>{{ user.email }}</td>
+                            <td>
+                                <input type="text" v-model="user.name" @input="markAsDirty(user.uid)">
+                            </td>
+                            <td>
+                                <input type="tel" v-model="user.phone" @input="markAsDirty(user.uid)">
+                            </td>
+                            <td>
+                                <select v-model="user.role" @change="markAsDirty(user.uid)">
+                                    <option v-for="role in availableRoles" :key="role" :value="role">{{ role }}</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select v-model="user.companyId" @change="markAsDirty(user.uid)">
+                                    <option value="">-- No Company --</option>
+                                    <option v-for="company in companies" :key="company.id" :value="company.id">{{ company.name }}</option>
+                                </select>
+                            </td>
+                            <td>{{ user.uid }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { getFirestore, collection, getDocs, doc, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk",
+            authDomain: "amiapp-e1d48.firebaseapp.com",
+            projectId: "amiapp-e1d48",
+            storageBucket: "amiapp-e1d48.appspot.com",
+            messagingSenderId: "709156310854",
+            appId: "1:709156310854:web:464a879038815ede871f47",
+            measurementId: "G-TKSX1GEVSS"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        Vue.createApp({
+            template: '#admin-template',
+            data() {
+                return {
+                    isAuthorized: false,
+                    isLoading: true,
+                    error: null,
+                    users: [],
+                    companies: [],
+                    originalUsers: {}, // Store original state of users for 'discard'
+                    dirtyUsers: {}, // Track which users have been modified
+                    availableRoles: ['enduser', 'dealer', 'prescriber', 'rep', 'ami', 'Admin1'],
+                };
+            },
+            methods: {
+                async checkAuthorization() {
+                    const auth = getAuth();
+                    onAuthStateChanged(auth, async (user) => {
+                        if (user) {
+                            try {
+                                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                                if (userDoc.exists() && userDoc.data().roles?.includes('Admin1')) {
+                                    this.isAuthorized = true;
+                                    this.fetchCompanies(); // Fetch companies first
+                                    this.fetchUsers();
+                                } else {
+                                    this.isAuthorized = false;
+                                    this.isLoading = false;
+                                    this.error = "You do not have sufficient permissions to view this page.";
+                                }
+                            } catch (err) {
+                                this.error = "Error checking user permissions.";
+                                this.isLoading = false;
+                            }
+                        } else {
+                            window.location.href = `login.html?redirect=admin-users.html`;
+                        }
+                    });
+                },
+                async fetchCompanies() {
+                    try {
+                        const querySnapshot = await getDocs(collection(db, "companies"));
+                        // Sort companies alphabetically for the dropdown
+                        this.companies = querySnapshot.docs
+                            .map(doc => ({ id: doc.id, name: doc.data().name }))
+                            .sort((a, b) => a.name.localeCompare(b.name));
+                    } catch (err) {
+                        this.error = "Failed to load companies for dropdown.";
+                    }
+                },
+                async fetchUsers() {
+                    this.isLoading = true;
+                    this.error = null;
+                    try {
+                        // This fetches all documents from the 'users' collection.
+                        // Note: This does not list users from Firebase Auth directly, only those
+                        // with a corresponding document in the 'users' Firestore collection.
+                        const querySnapshot = await getDocs(collection(db, "users"));
+                        const usersData = [];
+                        querySnapshot.forEach((doc) => {
+                            usersData.push({
+                                uid: doc.id,
+                                email: doc.data().email || 'N/A',
+                                name: doc.data().name || '',
+                                phone: doc.data().phone || '',
+                                role: doc.data().role || 'enduser',
+                                companyId: doc.data().companyId || ''
+                            });
+                        });
+                        this.users = usersData;
+                        // Store a deep copy of the original data for the discard functionality
+                        this.originalUsers = JSON.parse(JSON.stringify(usersData.reduce((acc, user) => {
+                            acc[user.uid] = user;
+                            return acc;
+                        }, {})));
+
+                    } catch (err) {
+                        this.error = `Error fetching user data: ${err.message}`;
+                        console.error(err);
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                markAsDirty(uid) {
+                    this.dirtyUsers[uid] = true;
+                },
+                discardChanges() {
+                    if (!confirm("Are you sure you want to discard all changes?")) return;
+                    
+                    // Revert only the dirty users to their original state
+                    for (const uid in this.dirtyUsers) {
+                        const originalUser = this.originalUsers[uid];
+                        if (originalUser) {
+                            const userIndex = this.users.findIndex(u => u.uid === uid);
+                            if (userIndex !== -1) {
+                                this.users[userIndex] = JSON.parse(JSON.stringify(originalUser));
+                            }
+                        }
+                    }
+                    this.dirtyUsers = {}; // Clear the dirty list
+                },
+                async saveChanges() {
+                    const dirtyUserIds = Object.keys(this.dirtyUsers);
+                    if (dirtyUserIds.length === 0) {
+                        alert("No changes to save.");
+                        return;
+                    }
+                    if (!confirm(`Are you sure you want to save changes for ${dirtyUserIds.length} user(s)?`)) return;
+
+                    this.isLoading = true;
+                    try {
+                        const batch = writeBatch(db);
+
+                        for (const uid of dirtyUserIds) {
+                            const userToSave = this.users.find(u => u.uid === uid);
+                            if (userToSave) {
+                                const userDocRef = doc(db, "users", uid);
+                                // We only update the fields that are editable on the form.
+                                // We don't update 'email' as it's tied to auth.
+                                batch.update(userDocRef, {
+                                    name: userToSave.name,
+                                    phone: userToSave.phone,
+                                    role: userToSave.role,
+                                    companyId: userToSave.companyId
+                                });
+                            }
+                        }
+
+                        await batch.commit();
+
+                        // Update the 'originalUsers' state to reflect the new saved state
+                        for (const uid of dirtyUserIds) {
+                           const userToUpdate = this.users.find(u => u.uid === uid);
+                           if (userToUpdate) {
+                               this.originalUsers[uid] = JSON.parse(JSON.stringify(userToUpdate));
+                           }
+                        }
+
+                        this.dirtyUsers = {}; // Clear dirty flags
+                        alert("Changes saved successfully!");
+
+                    } catch (err) {
+                        this.error = `Error saving changes: ${err.message}`;
+                        console.error(err);
+                    } finally {
+                        this.isLoading = false;
+                    }
+                }
+            },
+            created() {
+                this.checkAuthorization();
+            }
+        }).mount('#admin-container');
+    </script>
+
+</body>
+</html>

@@ -3,41 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Product Configurators</title>
-    <!-- A simple, clean CSS framework for styling -->
+    <title>AMI App Home</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = { apiKey: "AIzaSyAnmxoSyCss3WqD6vjotAcoVJYEiXMhtHk", authDomain: "amiapp-e1d48.firebaseapp.com", projectId: "amiapp-e1d48", storageBucket: "amiapp-e1d48.appspot.com", messagingSenderId: "709156310854", appId: "1:709156310854:web:464a879038815ede871f47", measurementId: "G-TKSX1GEVSS" };
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
     <style>
         body {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            min-height: 80vh;
-            margin: 0;
+            justify-content: center;
+            height: 100vh;
+            gap: 1.5rem;
         }
-        .container { 
-            max-width: 600px; 
-            margin: 2rem auto; 
-            padding: 2rem; 
-            border: 1px solid #ddd; 
-            border-radius: 8px; 
-            background-color: #f9f9f9; 
+        .navigation-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        select {
+            min-width: 250px;
             text-align: center;
         }
-        ul { list-style-type: none; padding: 0; }
-        li { margin: 1.5rem 0; }
-        a { font-size: 1.25rem; text-decoration: none; }
-        a:hover { color: #007bff; }
+        h1 {
+            margin-bottom: 2rem;
+        }
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .user-actions button {
+            margin: 0;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Product Configurators</h2>
-        <p>Please select a product to begin configuration.</p>
-        <ul>
-            <li><a href="z1of.html">Zing Size 1</a></li>
-            <li><a href="z2of.html">Zing Size 2</a></li>
-            <li><a href="SCof.html">Shower Commode</a></li>
-        </ul>
+
+    <h1>AMI Application Portal</h1>
+    
+    <div id="user-actions" class="user-actions">
+        <a id="my-builds-link" href="my-builds.html" style="display: none;">My Builds</a>
+        <a id="user-profile-link" href="user.html" style="display: none;">My Profile</a>
+        <button id="auth-button">Login</button>
     </div>
+
+    <div class="navigation-group">
+        <label for="orderform-nav"><h3>Order Form Configurators</h3></label>
+        <select id="orderform-nav" onchange="if (this.value) window.location.href = this.value;">
+            <option value="">Select a Configurator...</option>
+            <!-- Options will be dynamically inserted here -->
+        </select>
+    </div>
+
+    <div class="navigation-group">
+        <label for="admin-nav"><h3>Admin Pages</h3></label>
+        <select id="admin-nav" onchange="if (this.value) window.location.href = this.value;">
+            <option value="">Select an Admin Page...</option>
+            <!-- Options will be dynamically inserted here -->
+        </select>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const authButton = document.getElementById('auth-button');
+            const myBuildsLink = document.getElementById('my-builds-link');
+            const userProfileLink = document.getElementById('user-profile-link');
+            const orderFormNav = document.getElementById('orderform-nav');
+            const adminNav = document.getElementById('admin-nav');
+
+            // --- Define your order form pages here ---
+            const orderForms = [
+                { url: 'BM.html', title: 'Bantam Medium Order Form' },
+                { url: 'evolv.html', title: 'Evolv Order Form' },
+                { url: 'SC.html', title: 'Shower Commode Order Form' },
+                { url: 'zing1.html', title: 'Zing Size 1 Order Form' },
+                { url: 'zing2.html', title: 'Zing Size 2 Order Form' }
+            ];
+
+            orderForms.forEach(form => {
+                orderFormNav.add(new Option(form.title, form.url));
+            });
+
+            // --- Define your admin pages here ---
+            const adminPages = [
+                { url: 'admin-bantamm.html', title: 'Bantam Medium Admin' },
+                { url: 'admin-bantamsx.html', title: 'Bantam Small/X-Small Admin' },
+                { url: 'admin-evolv.html', title: 'Evolv Admin' },
+                { url: 'admin-glider.html', title: 'Glider Admin' },
+                { url: 'admin-sc.html', title: 'Shower Commode Admin' },
+                { url: 'admin-strapstand.html', title: 'StrapStand Admin' },
+                { url: 'admin-users.html', title: 'User Management' },
+                { url: 'admin-zing1.html', title: 'Zing Size 1 Admin' },
+                { url: 'admin-zing2.html', title: 'Zing Size 2 Admin' },
+                { url: 'admin-zingp.html', title: 'Zing Prone Admin' }
+                // To add a new page, just add a new line to this array.
+            ];
+
+            // Populate the admin dropdown
+            adminPages.forEach(page => {
+                const option = new Option(page.title, page.url);
+                adminNav.add(option);
+            });
+
+            firebase.auth().onAuthStateChanged(user => {
+                if (user) {
+                    authButton.textContent = 'Logout';
+                    myBuildsLink.style.display = 'inline'; // Show My Builds link
+                    userProfileLink.style.display = 'inline'; // Show My Profile link
+                    authButton.onclick = () => firebase.auth().signOut();
+                } else {
+                    authButton.textContent = 'Login';
+                    myBuildsLink.style.display = 'none'; // Hide My Builds link
+                    userProfileLink.style.display = 'none'; // Hide My Profile link
+                    authButton.onclick = () => window.location.href = 'login.html';
+                }
+            });
+        });
+    </script>
+
 </body>
 </html>

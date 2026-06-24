@@ -1,0 +1,23 @@
+{
+  "name": "ami-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "sync-sheet.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agardeen/amiapp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/agardeen/amiapp/issues"
+  },
+  "homepage": "https://github.com/agardeen/amiapp#readme",
+  "dependencies": {
+    "googleapis": "^166.0.0"
+  }
+}
